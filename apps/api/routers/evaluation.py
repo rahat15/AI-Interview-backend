@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 import uuid
 
-from core.db import get_db
+#from core.db import get_db
 from core.models import User, Artifact
 from apps.api.deps.auth import get_current_active_user
 from cv_eval.schemas import CVEvaluationRequest
@@ -18,7 +18,7 @@ evaluation_engine = CVEvaluationEngine()
 async def evaluate_cv_jd(
     request: CVEvaluationRequest,
     current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db),
+    #db: Session = Depends(get_db),
 ):
     """
     Evaluate CV against Job Description and return raw JSON from the engine.
