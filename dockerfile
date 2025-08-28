@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN pip install --no-cache-dir --upgrade pip
 
 # Copy requirements first (for caching)
-COPY requirements.txt .
+COPY cv-req.txt .
 
 # Install dependencies
 RUN pip install --no-cache-dir -r cv-req.txt
