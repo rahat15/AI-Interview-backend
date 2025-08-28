@@ -6,7 +6,7 @@ services:
       context: .
       dockerfile: infra/docker/Dockerfile.api
     ports:
-      - "8080:8080"
+      - "8000:2000"
     environment:
       - DATABASE_URL=postgresql://postgres:password@postgres:5432/interview_coach
       - REDIS_URL=redis://redis:6379/0
