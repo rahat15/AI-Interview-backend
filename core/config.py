@@ -72,9 +72,11 @@ from typing import Optional
 from pydantic import Field
 from pydantic_settings import BaseSettings
 
-
 class Settings(BaseSettings):
-    # LLM / Evaluation
+    # --- Database ---
+    database_url: str = Field(env="DATABASE_URL")
+
+    # --- LLM / Evaluation ---
     llm_model: Optional[str] = Field(default=None, env="LLM_MODEL")
     groq_api_key: Optional[str] = Field(default=None, env="GROQ_API_KEY")
     evaluation_timeout: int = Field(default=300, env="EVALUATION_TIMEOUT_SECONDS")
@@ -83,6 +85,4 @@ class Settings(BaseSettings):
         env_file = ".env"
         extra = "ignore"
 
-
-# Global settings instance
 settings = Settings()
