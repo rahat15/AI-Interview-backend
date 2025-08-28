@@ -1,0 +1,56 @@
+JOHN DOE
+Software Engineer
+john.doe@email.com | +1 (555) 123-4567 | linkedin.com/in/johndoe
+
+PROFESSIONAL SUMMARY
+Experienced software engineer with 5+ years developing scalable web applications and microservices. Proficient in Python, JavaScript, and cloud technologies. Passionate about clean code, testing, and continuous improvement.
+
+TECHNICAL SKILLS
+Programming Languages: Python, JavaScript, TypeScript, Java
+Frameworks: FastAPI, Django, React, Node.js, Spring Boot
+Databases: PostgreSQL, MongoDB, Redis, Elasticsearch
+Cloud & DevOps: AWS, Docker, Kubernetes, Terraform, CI/CD
+Tools: Git, JIRA, Confluence, Postman, VS Code
+
+PROFESSIONAL EXPERIENCE
+
+Senior Software Engineer | TechCorp Inc. | 2022 - Present
+• Led development of microservices architecture serving 1M+ users
+• Implemented Redis caching layer reducing API response time by 40%
+• Mentored 3 junior developers and conducted code reviews
+• Collaborated with product team to define technical requirements
+• Technologies: Python, FastAPI, PostgreSQL, Redis, Docker, AWS
+
+Software Engineer | StartupXYZ | 2020 - 2022
+• Developed RESTful APIs using Django and Django REST Framework
+• Built React frontend components with TypeScript and Material-UI
+• Implemented automated testing achieving 90% code coverage
+• Participated in agile development process with 2-week sprints
+• Technologies: Python, Django, JavaScript, React, PostgreSQL
+
+Junior Developer | WebDev Solutions | 2018 - 2020
+• Created responsive web applications using HTML, CSS, and JavaScript
+• Assisted in database design and optimization
+• Fixed bugs and implemented new features based on client feedback
+• Technologies: HTML, CSS, JavaScript, PHP, MySQL
+
+EDUCATION
+Bachelor of Science in Computer Science
+University of Technology | 2014 - 2018
+GPA: 3.8/4.0
+
+CERTIFICATIONS
+AWS Certified Developer Associate
+Google Cloud Professional Developer
+Scrum Master Certified (SMC)
+
+PROJECTS
+E-commerce Platform: Built full-stack application with Python backend and React frontend
+Task Management App: Developed REST API with FastAPI and PostgreSQL
+Weather Dashboard: Created real-time weather app using OpenWeather API and Chart.js
+
+LANGUAGES
+English (Native), Spanish (Conversational)
+
+INTERESTS
+Open source contribution, machine learning, hiking, reading technical blogs

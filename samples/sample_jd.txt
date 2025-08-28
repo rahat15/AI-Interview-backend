@@ -1,0 +1,77 @@
+SENIOR SOFTWARE ENGINEER - BACKEND
+TechCorp Inc. | San Francisco, CA | Full-time
+
+ABOUT THE ROLE
+We are seeking a Senior Software Engineer to join our backend team and help build scalable, high-performance systems that serve millions of users worldwide. You will work on challenging technical problems and collaborate with cross-functional teams to deliver exceptional user experiences.
+
+RESPONSIBILITIES
+• Design and implement scalable backend services and APIs
+• Write clean, maintainable, and well-tested code
+• Collaborate with frontend engineers, product managers, and designers
+• Participate in code reviews and technical discussions
+• Mentor junior developers and share knowledge with the team
+• Contribute to architectural decisions and system design
+• Monitor and optimize application performance
+• Ensure code quality and maintain high test coverage
+
+REQUIREMENTS
+• 5+ years of software engineering experience
+• Strong proficiency in Python, Java, or similar languages
+• Experience with web frameworks (FastAPI, Django, Spring Boot)
+• Knowledge of database design and optimization (PostgreSQL, MongoDB)
+• Experience with cloud platforms (AWS, GCP, Azure)
+• Understanding of microservices architecture
+• Familiarity with containerization (Docker, Kubernetes)
+• Experience with CI/CD pipelines and automated testing
+• Strong problem-solving and analytical skills
+• Excellent communication and collaboration abilities
+
+PREFERRED QUALIFICATIONS
+• Experience with high-traffic applications
+• Knowledge of message queues and caching systems
+• Experience with monitoring and observability tools
+• Understanding of security best practices
+• Contributions to open source projects
+• Experience with agile development methodologies
+
+TECHNOLOGY STACK
+• Backend: Python, FastAPI, Django, Java, Spring Boot
+• Databases: PostgreSQL, MongoDB, Redis, Elasticsearch
+• Cloud: AWS, Docker, Kubernetes, Terraform
+• Testing: pytest, JUnit, Mockito
+• Monitoring: Prometheus, Grafana, ELK Stack
+• Version Control: Git, GitHub
+
+COMPENSATION & BENEFITS
+• Competitive salary range: $120,000 - $180,000
+• Equity participation
+• Comprehensive health, dental, and vision coverage
+• 401(k) with company match
+• Flexible work arrangements
+• Professional development budget
+• Unlimited PTO
+• Team events and activities
+
+CULTURE & VALUES
+• Innovation and continuous learning
+• Collaboration and knowledge sharing
+• Work-life balance
+• Diversity and inclusion
+• Customer-focused development
+• Quality and craftsmanship
+
+APPLICATION PROCESS
+1. Submit resume and cover letter
+2. Technical phone screen
+3. Take-home coding assignment
+4. On-site technical interview
+5. Team fit and culture interview
+6. Reference checks
+7. Offer and negotiation
+
+CONTACT
+For questions about this position, please contact:
+recruiting@techcorp.com
++1 (555) 987-6543
+
+TechCorp Inc. is an equal opportunity employer committed to diversity and inclusion in the workplace.
