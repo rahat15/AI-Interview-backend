@@ -17,6 +17,7 @@ services:
       - PROJECT_NAME=Interview Coach API
       - BACKEND_CORS_ORIGINS=["http://localhost:3000"]
       - EMBEDDINGS_MODEL=local
+      
     volumes:
       - ./uploads:/app/uploads
       - ./samples:/app/samples
@@ -26,6 +27,8 @@ services:
     networks:
       - interview-network
     restart: unless-stopped
+    env_file:
+      - .env    
 
   postgres:
     image: pgvector/pgvector:pg16

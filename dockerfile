@@ -15,7 +15,7 @@ RUN pip install --no-cache-dir --upgrade pip
 COPY requirements.txt .
 
 # Install dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r cv-req.txt
 
 # Copy the rest of the app
 COPY . .
