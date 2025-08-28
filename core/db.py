@@ -24,14 +24,18 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 
-def get_db() -> Generator[Session, None, None]:
-    """Dependency to get database session"""
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+# def get_db() -> Generator[Session, None, None]:
+#     """Dependency to get database session"""
+#     db = SessionLocal()
+#     try:
+#         yield db
+#     finally:
+#         db.close()
 
+
+def get_db():
+    # No DB for this deployment
+    raise RuntimeError("Database not configured in this deployment")
 
 @contextmanager
 def get_db_context() -> Generator[Session, None, None]:

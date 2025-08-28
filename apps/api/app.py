@@ -10,9 +10,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 
 # ✨ Your existing routers
-from apps.api.routers.auth import router as auth_router
+#from apps.api.routers.auth import router as auth_router
 from apps.api.routers.evaluation import router as evaluation_router
-from apps.api.routers.sessions import router as sessions_router
+#from apps.api.routers.sessions import router as sessions_router
 
 # ✅ NEW: CV router (add this file at apps/api/routers/cv.py as we discussed)
 from apps.api.routers.cv import router as cv_router
@@ -65,9 +65,9 @@ def create_app() -> FastAPI:
         return {"status": "ok"}
 
     # ── Routers (versioned inside each router via prefix) ───────────────────────
-    app.include_router(auth_router)         # usually has prefix="/v1/auth"
+    #app.include_router(auth_router)         # usually has prefix="/v1/auth"
     app.include_router(evaluation_router)   # e.g., "/v1/evaluation" or similar
-    app.include_router(sessions_router)     # e.g., "/v1/sessions"
+    #app.include_router(sessions_router)     # e.g., "/v1/sessions"
     app.include_router(cv_router)           # NEW: "/v1/cv"
 
     return app
