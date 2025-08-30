@@ -21,7 +21,7 @@ services:
     volumes:
       - ./uploads:/app/uploads
       - ./samples:/app/samples
-      - ./data:/app
+      #- ./data:/app
     depends_on:
       - postgres
       - redis
