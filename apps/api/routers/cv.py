@@ -1,17 +1,17 @@
-# apps/api/routers/cv.py
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from typing import List
 
-from apps.api.deps import get_engine
 from cv_eval.schemas import CVEvaluationRequest
 from cv_eval.engine import CVEvaluationEngine
 
 router = APIRouter(
     prefix="/v1/cv",
     tags=["cv"],
-    # dependencies=[Depends(auth.require_user)]  # uncomment if you want auth
 )
+
+# ---------- Init Engine ----------
+evaluation_engine = CVEvaluationEngine()
 
 # ---------- Request DTOs ----------
 class CVScoreRequest(BaseModel):
@@ -39,10 +39,12 @@ class FitIndexResponseDTO(BaseModel):
     cv_quality: SectionScoreDTO
     jd_match: SectionScoreDTO
 
+
+# ---------- Routes ----------
 @router.post("/score", response_model=SectionScoreDTO, summary="Score CV Quality")
-def score_cv(payload: CVScoreRequest, engine: CVEvaluationEngine = Depends(get_engine)):
+def score_cv(payload: CVScoreRequest):
     try:
-        cv_report = engine.evaluate_cv_quality(payload.cv_text)
+        cv_report = evaluation_engine.evaluate_cv_quality(payload.cv_text)
         return SectionScoreDTO(
             score=round(cv_report.overall_score, 2),
             band=cv_report.band,
@@ -58,10 +60,11 @@ def score_cv(payload: CVScoreRequest, engine: CVEvaluationEngine = Depends(get_e
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"CV scoring failed: {e}")
 
+
 @router.post("/fit-index", response_model=FitIndexResponseDTO, summary="Score CV + JD (Fit Index)")
-def score_fit_index(payload: FitIndexRequest, engine: CVEvaluationEngine = Depends(get_engine)):
+def score_fit_index(payload: FitIndexRequest):
     try:
-        result = engine.evaluate(CVEvaluationRequest(
+        result = evaluation_engine.evaluate(CVEvaluationRequest(
             cv_text=payload.cv_text,
             jd_text=payload.jd_text,
             include_constraints=payload.include_constraints
