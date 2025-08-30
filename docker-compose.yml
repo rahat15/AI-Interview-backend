@@ -6,7 +6,7 @@ services:
       context: .
       dockerfile: dockerfile
     ports:
-      - "8000:2000"
+      - "8000:8000"
     environment:
       - DATABASE_URL=postgresql://postgres:password@postgres:5432/interview_coach
       - REDIS_URL=redis://redis:6379/0
