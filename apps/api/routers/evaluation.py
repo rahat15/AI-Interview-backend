@@ -34,7 +34,7 @@ async def evaluate_cv_jd(
                 detail="Job description text cannot be empty"
             )
 
-        result = evaluation_engine.evaluate(request)  # returns dict/json
+        result = evaluation_engine.evaluate(request.cv_text, request.jd_text)  # returns dict/json
         return result
 
     except Exception as e:
