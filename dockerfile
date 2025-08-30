@@ -17,4 +17,6 @@ ENV PYTHONPATH=/app
 
 EXPOSE 8000
 
-CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "apps.api.app:app", "--bind", "0.0.0.0:8000", "--workers", "4"]
+ENV PYTHONPATH=/app:$PYTHONPATH
+
+CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "apps.api.app:app", "--chdir", "/app", "--bind", "0.0.0.0:8000", "--workers", "4"]
