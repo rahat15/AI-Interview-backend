@@ -64,10 +64,10 @@ def score_cv(payload: CVScoreRequest):
 @router.post("/fit-index", response_model=FitIndexResponseDTO, summary="Score CV + JD (Fit Index)")
 def score_fit_index(payload: FitIndexRequest):
     try:
-        result = engine.evaluate(
+        result = evaluation_engine.evaluate(
         cv_text=payload.cv_text,
         jd_text=payload.jd_text
-        )
+)
 
         return FitIndexResponseDTO(
             fit_index={"score": result.fit_index, "band": result.band},
