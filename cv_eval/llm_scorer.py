@@ -278,24 +278,30 @@
 #         # 🔑 Build Pydantic model directly from dict
 #         return EvaluationResult(**data)
 
-
-import json, time, logging
+import json, time, logging, os
+from dotenv import load_dotenv
 from .prompts import UNIFIED_EVALUATION_PROMPT
 
 logger = logging.getLogger(__name__)
 
-
-from dotenv import load_dotenv
-import os
-
-# Load variables from .env into environment
 load_dotenv()
 
 
 class LLMScorer:
     def __init__(self, client=None, model="llama3-8b-8192", temperature=0.0, timeout=60):
         from groq import Groq
-        self.client = client or Groq()
+
+        api_key = os.getenv("GROQ_API_KEY")
+        if not api_key:
+            raise ValueError("GROQ_API_KEY environment variable is required")
+
+        # Wrap Groq client to ignore bad kwargs like `proxies`
+        class SafeGroq(Groq):
+            def __init__(self, *args, **kwargs):
+                kwargs.pop("proxies", None)   # 🚑 remove proxies arg if passed
+                super().__init__(*args, **kwargs)
+
+        self.client = client or SafeGroq(api_key=api_key)
         self.model = model
         self.temperature = temperature
         self.timeout = timeout
@@ -306,11 +312,7 @@ class LLMScorer:
         raw = self._call_llm(prompt)
         cleaned = self._extract_json_from_response(raw)
 
-        try:
-            return json.loads(cleaned)   # 👈 just return dict
-        except json.JSONDecodeError as e:
-            logger.error(f"Could not parse JSON: {e}")
-            raise
+        return json.loads(cleaned)
 
     def _call_llm(self, prompt: str) -> str:
         for attempt in range(3):
@@ -341,6 +343,5 @@ class LLMScorer:
             s = text.find("```") + 3
             e = text.find("```", s)
             return text[s:e].strip()
-        # fallback
         start, end = text.find("{"), text.rfind("}")
         return text[start:end+1] if start != -1 and end != -1 else text
