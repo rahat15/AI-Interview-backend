@@ -20,9 +20,9 @@ from apps.api.routers.cv import router as cv_router
 # If you have a settings module, great; otherwise hardcode minimal defaults
 try:
     from apps.api.settings import settings  # optional convenience
-    APP_NAME = getattr(settings, "APP_NAME", "Interview Coach API")
-    API_PREFIX = getattr(settings, "API_PREFIX", "/")
-    CORS_ORIGINS = getattr(settings, "CORS_ORIGINS", ["*"])
+    APP_NAME = settings.project_name
+    API_PREFIX = settings.api_v1_str
+    CORS_ORIGINS = settings.backend_cors_origins
 except Exception:
     APP_NAME = "Interview Coach API"
     API_PREFIX = "/"
