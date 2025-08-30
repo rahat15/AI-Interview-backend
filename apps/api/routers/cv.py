@@ -118,8 +118,6 @@
 #         )
 #     except Exception as e:
 #         raise HTTPException(status_code=500, detail=f"Fit Index scoring failed: {str(e)}")
-
-
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
@@ -144,25 +142,32 @@ class FitIndexRequest(BaseModel):
 
 
 # ---------- Routes ----------
-@router.post("/score", summary="Score CV Quality")
+@router.post("/score", summary="Score CV Quality (CV only)")
 def score_cv(payload: CVScoreRequest):
+    """
+    Returns ONLY CV Quality scores (no JD match, no key takeaways).
+    """
     try:
         result = evaluation_engine.evaluate(
             cv_text=payload.cv_text,
-            jd_text=""
+            jd_text=""   # empty JD context
         )
-        return result  # 🚀 raw engine JSON (same as venv)
+        # ✅ Only return the CV quality portion
+        return {"cv_quality": result.get("cv_quality", {})}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"CV scoring failed: {str(e)}")
 
 
 @router.post("/fit-index", summary="Score CV + JD (Fit Index)")
 def score_fit_index(payload: FitIndexRequest):
+    """
+    Returns full evaluation (CV Quality + JD Match + Fit Index + Key Takeaways).
+    """
     try:
         result = evaluation_engine.evaluate(
             cv_text=payload.cv_text,
             jd_text=payload.jd_text
         )
-        return result  # 🚀 raw engine JSON (same as venv)
+        return result  # 🚀 full enriched JSON
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Fit Index scoring failed: {str(e)}")
