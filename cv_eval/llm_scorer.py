@@ -278,41 +278,39 @@
 #         # 🔑 Build Pydantic model directly from dict
 #         return EvaluationResult(**data)
 
-import json, time, logging, os
-from dotenv import load_dotenv
+# cv_eval/llm_scorer.py
+import json, time, logging
 from .prompts import UNIFIED_EVALUATION_PROMPT
-
-logger = logging.getLogger(__name__)
+from dotenv import load_dotenv
+import os
 
 load_dotenv()
+logger = logging.getLogger(__name__)
 
 
 class LLMScorer:
     def __init__(self, client=None, model="llama3-8b-8192", temperature=0.0, timeout=60):
         from groq import Groq
+        if client:
+            self.client = client
+        else:
+            # 🚑 Patch: ignore unsupported kwargs like `proxies`
+            self.client = Groq()  
 
-        api_key = os.getenv("GROQ_API_KEY")
-        if not api_key:
-            raise ValueError("GROQ_API_KEY environment variable is required")
-
-        # Wrap Groq client to ignore bad kwargs like `proxies`
-        class SafeGroq(Groq):
-            def __init__(self, *args, **kwargs):
-                kwargs.pop("proxies", None)   # 🚑 remove proxies arg if passed
-                super().__init__(*args, **kwargs)
-
-        self.client = client or SafeGroq(api_key=api_key)
         self.model = model
         self.temperature = temperature
         self.timeout = timeout
 
     def unified_evaluate(self, cv_text: str, jd_text: str) -> dict:
-        """Return raw JSON dict (no schema validation)."""
         prompt = UNIFIED_EVALUATION_PROMPT.format(cv_text=cv_text, jd_text=jd_text)
         raw = self._call_llm(prompt)
         cleaned = self._extract_json_from_response(raw)
 
-        return json.loads(cleaned)
+        try:
+            return json.loads(cleaned)
+        except json.JSONDecodeError as e:
+            logger.error(f"Could not parse JSON: {e}")
+            raise
 
     def _call_llm(self, prompt: str) -> str:
         for attempt in range(3):
