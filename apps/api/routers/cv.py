@@ -65,34 +65,34 @@ def score_cv(payload: CVScoreRequest):
 def score_fit_index(payload: FitIndexRequest):
     try:
         result = evaluation_engine.evaluate(
-        cv_text=payload.cv_text,
-        jd_text=payload.jd_text
-)
+            cv_text=payload.cv_text,
+            jd_text=payload.jd_text
+        )
 
         return FitIndexResponseDTO(
-            fit_index={"score": result.fit_index, "band": result.band},
+            fit_index=result.get("fit_index", {}),
             cv_quality=SectionScoreDTO(
-                score=round(result.cv_quality.overall_score, 2),
-                band=result.cv_quality.band,
+                score=round(result["cv_quality"]["overall_score"], 2),
+                band=result["cv_quality"]["band"],
                 subscores=[
                     SubscoreDTO(
-                        dimension=s.dimension,
-                        score=round(s.score, 2),
-                        max_score=s.max_score,
-                        evidence=s.evidence or []
-                    ) for s in result.cv_quality.subscores
+                        dimension=s["dimension"],
+                        score=round(s["score"], 2),
+                        max_score=s["max_score"],
+                        evidence=s.get("evidence", [])
+                    ) for s in result["cv_quality"].get("subscores", [])
                 ],
             ),
             jd_match=SectionScoreDTO(
-                score=round(result.jd_match.overall_score, 2),
-                band=result.jd_match.band,
+                score=round(result["jd_match"]["overall_score"], 2),
+                band=result["jd_match"]["band"],
                 subscores=[
                     SubscoreDTO(
-                        dimension=s.dimension,
-                        score=round(s.score, 2),
-                        max_score=s.max_score,
-                        evidence=s.evidence or []
-                    ) for s in result.jd_match.subscores
+                        dimension=s["dimension"],
+                        score=round(s["score"], 2),
+                        max_score=s["max_score"],
+                        evidence=s.get("evidence", [])
+                    ) for s in result["jd_match"].get("subscores", [])
                 ],
             ),
         )
