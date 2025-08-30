@@ -11,7 +11,7 @@ RUN pip install --no-cache-dir --upgrade pip
 COPY cv-req.txt .
 RUN pip install --no-cache-dir -r cv-req.txt
 
-COPY . .
+COPY . /app
 
 ENV PYTHONPATH=/app
 
