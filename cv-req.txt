@@ -21,3 +21,15 @@ psycopg2-binary
 pgvector
 python-jose[cryptography]
 passlib[bcrypt]
+
+# For handling file uploads
+python-multipart
+
+# PDF extraction
+pdfplumber
+
+# DOCX extraction
+python-docx
+
+# Legacy DOC extraction (optional but useful for .doc, .odt, etc.)
+textract

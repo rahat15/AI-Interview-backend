@@ -17,6 +17,8 @@ from apps.api.routers.evaluation import router as evaluation_router
 # ✅ NEW: CV router (add this file at apps/api/routers/cv.py as we discussed)
 from apps.api.routers.cv import router as cv_router
 
+from apps.api.routers.upload import router as upload_router  
+
 # If you have a settings module, great; otherwise hardcode minimal defaults
 try:
     from apps.api.settings import settings  # optional convenience
@@ -69,6 +71,8 @@ def create_app() -> FastAPI:
     app.include_router(evaluation_router)   # e.g., "/v1/evaluation" or similar
     #app.include_router(sessions_router)     # e.g., "/v1/sessions"
     app.include_router(cv_router)           # NEW: "/v1/cv"
+
+    app.include_router(upload_router) 
 
     return app
 
