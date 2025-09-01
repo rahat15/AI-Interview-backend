@@ -2,7 +2,7 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies needed for textract + pocketsphinx
+# Install system dependencies required for textract + pocketsphinx + OCR
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     swig \
@@ -28,10 +28,10 @@ RUN pip install --no-cache-dir -r cv-req.txt
 # Copy app code
 COPY . /app
 
-# Set PYTHONPATH so imports work
+# Ensure app imports work
 ENV PYTHONPATH=/app
 
 EXPOSE 8000
 
-# Run with Gunicorn + Uvicorn workers
+# Run app with Gunicorn + Uvicorn workers
 CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "apps.api.app:app", "--chdir", "/app", "--bind", "0.0.0.0:8000", "--workers", "4"]
