@@ -32,4 +32,4 @@ pdfplumber
 python-docx
 
 # Legacy DOC extraction (optional but useful for .doc, .odt, etc.)
-textract
+textract[docx,pdf]
