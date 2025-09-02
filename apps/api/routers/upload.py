@@ -49,23 +49,14 @@ def save_and_extract(upload: UploadFile) -> str:
 # -----------------------
 # Endpoints
 # -----------------------
-@router.post("/cv")
-async def upload_cv(file: UploadFile = File(...)):
-    """Extracts CV text only (no evaluation)"""
-    try:
-        text = save_and_extract(file)
-        return {"cv_text": text}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-@router.post("/cv_evaluate", response_model=CVEvaluationResult)
+@router.post("/cv_evaluate")
 async def upload_and_evaluate_cv(
     file: UploadFile = File(...),
     jd_text: str = Form("", description="Optional JD text"),
     jd_file: UploadFile = File(None)
 ):
     """
-    Uploads CV (PDF/DOC/DOCX), and optionally JD (text or file).
+    Upload CV (PDF/DOC/DOCX), and optionally JD (text or file).
     - If only CV is provided → CV-only evaluation
     - If JD text/file provided → full CV vs JD evaluation
     """
@@ -81,7 +72,7 @@ async def upload_and_evaluate_cv(
             jd_extracted = save_and_extract(jd_file)
             return evaluation_engine.evaluate(cv_text, jd_extracted)
 
-        # Case 3: Only CV
+        # Case 3: Only CV (CV quality evaluation)
         return evaluation_engine.evaluate(cv_text)
 
     except Exception as e:
