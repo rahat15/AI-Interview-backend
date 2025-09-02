@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 import shutil, tempfile, os
 import pdfplumber
 from docx import Document
@@ -39,46 +39,51 @@ def extract_text(file_path: str) -> str:
     else:
         raise ValueError(f"Unsupported file format: {ext}")
 
+def save_and_extract(upload: UploadFile) -> str:
+    with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(upload.filename)[1]) as tmp:
+        shutil.copyfileobj(upload.file, tmp)
+        tmp_path = tmp.name
+    text = extract_text(tmp_path)
+    os.remove(tmp_path)
+    return text
+
 # -----------------------
 # Endpoints
 # -----------------------
 @router.post("/cv")
 async def upload_cv(file: UploadFile = File(...)):
     """Extracts text only (no evaluation)"""
-    tmp_path = None
     try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file.filename)[1]) as tmp:
-            shutil.copyfileobj(file.file, tmp)
-            tmp_path = tmp.name
-
-        text = extract_text(tmp_path)
+        text = save_and_extract(file)
         return {"cv_text": text}
-
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-    finally:
-        file.file.close()
-        if tmp_path and os.path.exists(tmp_path):
-            os.remove(tmp_path)
 
 @router.post("/cv_evaluate", response_model=CVEvaluationResult)
-async def upload_and_evaluate_cv(file: UploadFile = File(...)):
-    """Uploads CV (PDF/DOC/DOCX), extracts text, and evaluates it"""
-    tmp_path = None
+async def upload_and_evaluate_cv(
+    file: UploadFile = File(...),
+    jd_text: str = Form("", description="Optional JD text"),
+    jd_file: UploadFile = File(None)
+):
+    """
+    Upload CV (PDF/DOC/DOCX), and optionally JD (text or file).
+    - If only CV is provided → CV-only evaluation
+    - If JD text/file provided → full CV vs JD evaluation
+    """
     try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file.filename)[1]) as tmp:
-            shutil.copyfileobj(file.file, tmp)
-            tmp_path = tmp.name
+        cv_text = save_and_extract(file)
 
-        text = extract_text(tmp_path)
+        # Case 1: JD provided as plain text
+        if jd_text and jd_text.strip():
+            return evaluation_engine.evaluate(cv_text, jd_text)
 
-        # Directly run evaluation on extracted text
-        result = evaluation_engine.evaluate(text)  
-        return result
+        # Case 2: JD provided as a file
+        if jd_file is not None:
+            jd_extracted = save_and_extract(jd_file)
+            return evaluation_engine.evaluate(cv_text, jd_extracted)
+
+        # Case 3: Only CV (CV quality evaluation)
+        return evaluation_engine.evaluate(cv_text)
 
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    finally:
-        file.file.close()
-        if tmp_path and os.path.exists(tmp_path):
-            os.remove(tmp_path)
+        raise HTTPException(status_code=400, detail=f"Evaluation failed: {str(e)}")
