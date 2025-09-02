@@ -12,6 +12,12 @@ router = APIRouter(prefix="/upload", tags=["upload"])
 # -----------------------
 # Helpers
 # -----------------------
+import os
+import pdfplumber
+from docx import Document
+import textract
+from bs4 import BeautifulSoup
+
 def extract_text_from_pdf(file_path: str) -> str:
     text = ""
     with pdfplumber.open(file_path) as pdf:
@@ -27,6 +33,25 @@ def extract_text_from_docx(file_path: str) -> str:
 def extract_text_from_doc(file_path: str) -> str:
     return textract.process(file_path).decode("utf-8")
 
+def extract_text_from_txt(file_path: str) -> str:
+    with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+        return f.read()
+
+def extract_text_from_rtf(file_path: str) -> str:
+    return textract.process(file_path).decode("utf-8")
+
+def extract_text_from_md(file_path: str) -> str:
+    with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+        return f.read()
+
+def extract_text_from_html(file_path: str) -> str:
+    with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+        soup = BeautifulSoup(f, "html.parser")
+        return soup.get_text(separator="\n")
+
+def extract_text_from_odt(file_path: str) -> str:
+    return textract.process(file_path).decode("utf-8")
+
 def extract_text(file_path: str) -> str:
     ext = os.path.splitext(file_path)[1].lower()
     if ext == ".pdf":
@@ -35,8 +60,19 @@ def extract_text(file_path: str) -> str:
         return extract_text_from_docx(file_path)
     elif ext == ".doc":
         return extract_text_from_doc(file_path)
+    elif ext == ".txt":
+        return extract_text_from_txt(file_path)
+    elif ext == ".rtf":
+        return extract_text_from_rtf(file_path)
+    elif ext == ".md":
+        return extract_text_from_md(file_path)
+    elif ext in [".html", ".htm"]:
+        return extract_text_from_html(file_path)
+    elif ext == ".odt":
+        return extract_text_from_odt(file_path)
     else:
         raise ValueError(f"Unsupported file format: {ext}")
+
 
 def save_and_extract(upload: UploadFile) -> str:
     with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(upload.filename)[1]) as tmp:

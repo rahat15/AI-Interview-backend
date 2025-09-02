@@ -33,3 +33,4 @@ python-docx
 
 # Legacy DOC extraction (optional but useful for .doc, .odt, etc.)
 textract
+lxml
