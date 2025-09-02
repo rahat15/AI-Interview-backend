@@ -81,35 +81,60 @@
 #             evaluation_timestamp=legacy.evaluation_timestamp,
 #             meta=legacy.meta
 #         )
+
+
 from .llm_scorer import LLMScorer
 import logging
+from . import heuristics  # fallback
 
 logger = logging.getLogger(__name__)
 
 class CVEvaluationEngine:
-    def __init__(self, use_llm=True):
+    def __init__(self, model="llama3-70b-8192", use_llm=True):
         self.use_llm = use_llm
         self.llm = None
         if self.use_llm:
             try:
-                self.llm = LLMScorer()
-                logger.info("LLM scorer initialized")
+                self.llm = LLMScorer(model=model)
+                logger.info("✅ LLM scorer initialized")
             except Exception as e:
-                logger.warning(f"LLM scorer init failed: {e}")
-                self.use_llm = False
+                logger.error(f"❌ Failed to init LLM scorer: {e}")
+                self.use_llm = False  # allow heuristics fallback
 
-    def evaluate(self, cv_text: str, jd_text: str = None) -> dict:
+    def evaluate(self, cv_text: str, jd_text: str = "") -> dict:
         """
-        If jd_text is provided → full CV vs JD evaluation.
-        If jd_text is missing → CV-only evaluation.
+        Evaluate CV or CV+JD.
+        - Prefer LLM for all cases
+        - If LLM fails, fallback to heuristics
         """
-        if not cv_text or not cv_text.strip():
-            raise ValueError("cv_text cannot be empty")
+        if not cv_text.strip():
+            raise ValueError("CV text cannot be empty")
 
+        # ----------------
+        # Try LLM first
+        # ----------------
         if self.use_llm and self.llm:
-            if jd_text and jd_text.strip():
-                return self.llm.unified_evaluate(cv_text, jd_text)
-            else:
-                return self.llm.evaluate_cv_only(cv_text)
+            try:
+                return self.llm.unified_evaluate(cv_text, jd_text or "")
+            except Exception as e:
+                logger.error(f"❌ LLM evaluation failed: {e}. Falling back to heuristics...")
 
-        raise RuntimeError("LLM not available. Switch to heuristics mode if needed.")
+        # ----------------
+        # Heuristic fallback
+        # ----------------
+        logger.warning("⚠️ Using heuristics fallback")
+
+        result = {
+            "cv_quality": heuristics.score_cv_quality(cv_text)
+        }
+
+        if jd_text and jd_text.strip():
+            jd_match = heuristics.score_jd_match(cv_text, jd_text)
+            result["jd_match"] = jd_match
+            # crude fit index
+            result["fit_index"] = round(
+                0.6 * jd_match["overall_score"] + 0.4 * result["cv_quality"]["overall_score"], 2
+            )
+            result["band"] = heuristics._band(result["fit_index"])
+
+        return result
