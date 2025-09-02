@@ -90,7 +90,7 @@ from . import heuristics  # fallback
 logger = logging.getLogger(__name__)
 
 class CVEvaluationEngine:
-    def __init__(self, model="llama3-70b-8192", use_llm=True):
+    def __init__(self, model="llama-3.1-8b-instant", use_llm=True):
         self.use_llm = use_llm
         self.llm = None
         if self.use_llm:
