@@ -81,8 +81,6 @@
 #             evaluation_timestamp=legacy.evaluation_timestamp,
 #             meta=legacy.meta
 #         )
-
-
 from .llm_scorer import LLMScorer
 import logging
 
@@ -100,12 +98,18 @@ class CVEvaluationEngine:
                 logger.warning(f"LLM scorer init failed: {e}")
                 self.use_llm = False
 
-    def evaluate(self, cv_text: str, jd_text: str) -> dict:
+    def evaluate(self, cv_text: str, jd_text: str = None) -> dict:
+        """
+        If jd_text is provided → full CV vs JD evaluation.
+        If jd_text is missing → CV-only evaluation.
+        """
+        if not cv_text or not cv_text.strip():
+            raise ValueError("cv_text cannot be empty")
+
         if self.use_llm and self.llm:
-            try:
+            if jd_text and jd_text.strip():
                 return self.llm.unified_evaluate(cv_text, jd_text)
-            except Exception as e:
-                logger.error(f"LLM evaluation failed: {e}")
-                raise
-        else:
-            raise RuntimeError("LLM not available. Switch to heuristics mode if needed.")
+            else:
+                return self.llm.evaluate_cv_only(cv_text)
+
+        raise RuntimeError("LLM not available. Switch to heuristics mode if needed.")

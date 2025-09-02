@@ -279,6 +279,8 @@
 #         return EvaluationResult(**data)
 
 # cv_eval/llm_scorer.py
+
+
 import json, time, logging
 from .prompts import UNIFIED_EVALUATION_PROMPT
 from dotenv import load_dotenv
@@ -289,29 +291,49 @@ logger = logging.getLogger(__name__)
 
 
 class LLMScorer:
-    def __init__(self, client=None, model="llama3-8b-8192", temperature=0.0, timeout=60):
+    def __init__(self, client=None, model="llama-3.1-8b-instant", temperature=0.0, timeout=60):
         from groq import Groq
-        if client:
-            self.client = client
-        else:
-            # 🚑 Patch: ignore unsupported kwargs like `proxies`
-            self.client = Groq()  
-
+        self.client = client or Groq()
         self.model = model
         self.temperature = temperature
         self.timeout = timeout
 
+    # ---------- CV vs JD ----------
     def unified_evaluate(self, cv_text: str, jd_text: str) -> dict:
         prompt = UNIFIED_EVALUATION_PROMPT.format(cv_text=cv_text, jd_text=jd_text)
         raw = self._call_llm(prompt)
         cleaned = self._extract_json_from_response(raw)
+        return json.loads(cleaned)
 
-        try:
-            return json.loads(cleaned)
-        except json.JSONDecodeError as e:
-            logger.error(f"Could not parse JSON: {e}")
-            raise
+    # ---------- CV only ----------
+    def evaluate_cv_only(self, cv_text: str) -> dict:
+        prompt = f"""
+        You are an expert ATS evaluator.
+        Evaluate ONLY the quality of this CV:
 
+        ---
+        {cv_text}
+        ---
+
+        Return JSON strictly in this format:
+        {{
+            "cv_quality": {{
+                "overall_score": <0-100>,
+                "subscores": [
+                    {{"dimension": "ats_structure", "score": <int>, "max_score": 10}},
+                    {{"dimension": "writing_clarity", "score": <int>, "max_score": 15}},
+                    {{"dimension": "quantified_impact", "score": <int>, "max_score": 20}},
+                    {{"dimension": "technical_depth", "score": <int>, "max_score": 15}},
+                    {{"dimension": "projects_portfolio", "score": <int>, "max_score": 10}}
+                ]
+            }}
+        }}
+        """
+        raw = self._call_llm(prompt)
+        cleaned = self._extract_json_from_response(raw)
+        return json.loads(cleaned)
+
+    # ---------- Internals ----------
     def _call_llm(self, prompt: str) -> str:
         for attempt in range(3):
             try:
@@ -343,3 +365,4 @@ class LLMScorer:
             return text[s:e].strip()
         start, end = text.find("{"), text.rfind("}")
         return text[start:end+1] if start != -1 and end != -1 else text
+
