@@ -36,7 +36,7 @@ def extract_text(file_path: str) -> str:
 async def upload_cv(file: UploadFile = File(...)):
     tmp_path = None
     try:
-        with tempfile.NamedTemporaryFile(delete=False) as tmp:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file.filename)[1]) as tmp:
             shutil.copyfileobj(file.file, tmp)
             tmp_path = tmp.name
 
