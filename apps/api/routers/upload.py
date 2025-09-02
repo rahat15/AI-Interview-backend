@@ -4,8 +4,7 @@ import pdfplumber
 from docx import Document
 import textract
 
-# Import your evaluation engine and schema
-from apps.api.routers.evaluation import evaluation_engine
+from apps.api.eval_engine_instance import evaluation_engine   # ✅ import from shared
 from cv_eval.schemas import CVEvaluationResult
 
 router = APIRouter(prefix="/upload", tags=["upload"])
@@ -52,7 +51,7 @@ def save_and_extract(upload: UploadFile) -> str:
 # -----------------------
 @router.post("/cv")
 async def upload_cv(file: UploadFile = File(...)):
-    """Extracts text only (no evaluation)"""
+    """Extracts CV text only (no evaluation)"""
     try:
         text = save_and_extract(file)
         return {"cv_text": text}
@@ -66,7 +65,7 @@ async def upload_and_evaluate_cv(
     jd_file: UploadFile = File(None)
 ):
     """
-    Upload CV (PDF/DOC/DOCX), and optionally JD (text or file).
+    Uploads CV (PDF/DOC/DOCX), and optionally JD (text or file).
     - If only CV is provided → CV-only evaluation
     - If JD text/file provided → full CV vs JD evaluation
     """
@@ -82,7 +81,7 @@ async def upload_and_evaluate_cv(
             jd_extracted = save_and_extract(jd_file)
             return evaluation_engine.evaluate(cv_text, jd_extracted)
 
-        # Case 3: Only CV (CV quality evaluation)
+        # Case 3: Only CV
         return evaluation_engine.evaluate(cv_text)
 
     except Exception as e:
