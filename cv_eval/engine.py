@@ -99,11 +99,11 @@ class CVEvaluationEngine:
                 logger.info("✅ LLM scorer initialized")
             except Exception as e:
                 logger.error(f"❌ Failed to init LLM scorer: {e}")
-                self.use_llm = False  # allow heuristics fallback
+                self.use_llm = False  # fallback if init fails
 
     def evaluate(self, cv_text: str, jd_text: str = "") -> dict:
         """
-        Evaluate CV or CV+JD.
+        Evaluate CV (with optional JD).
         - Prefer LLM for all cases
         - If LLM fails, fallback to heuristics
         """
@@ -119,8 +119,8 @@ class CVEvaluationEngine:
                     # CV + JD evaluation
                     return self.llm.unified_evaluate(cv_text, jd_text)
                 else:
-                    # CV-only evaluation
-                    return {"cv_quality": self.llm.score_cv_only(cv_text)}
+                    # CV-only evaluation (still use unified_evaluate but with empty JD)
+                    return self.llm.unified_evaluate(cv_text, "")
             except Exception as e:
                 logger.error(f"❌ LLM evaluation failed: {e}. Falling back to heuristics...")
 
