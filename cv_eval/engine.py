@@ -126,16 +126,27 @@ class CVEvaluationEngine:
         # ----------------
         if result is None:
             logger.warning("⚠️ Using heuristics fallback")
-            result = {
-                "cv_quality": heuristics.score_cv_quality(cv_text)
-            }
+
+            # CV scoring
+            cv_quality = heuristics.score_cv_quality(cv_text)
+            if hasattr(cv_quality, "model_dump"):  # convert Pydantic model -> dict
+                cv_quality = cv_quality.model_dump()
+
+            result = {"cv_quality": cv_quality}
+
+            # JD scoring
             if jd_text and jd_text.strip():
                 jd_match = heuristics.score_jd_match(cv_text, jd_text)
+                if hasattr(jd_match, "model_dump"):
+                    jd_match = jd_match.model_dump()
+
                 result["jd_match"] = jd_match
                 result["fit_index"] = round(
-                    0.6 * jd_match["overall_score"] + 0.4 * result["cv_quality"]["overall_score"], 2
+                    0.6 * jd_match["overall_score"] + 0.4 * cv_quality["overall_score"], 2
                 )
                 result["band"] = heuristics._band(result["fit_index"])
+
+
 
         # ----------------
         # Final cleanup
