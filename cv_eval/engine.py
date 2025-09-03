@@ -110,35 +110,41 @@ class CVEvaluationEngine:
         if not cv_text.strip():
             raise ValueError("CV text cannot be empty")
 
+        result = None
+
         # ----------------
         # Try LLM first
         # ----------------
         if self.use_llm and self.llm:
             try:
-                if jd_text and jd_text.strip():
-                    # CV + JD evaluation
-                    return self.llm.unified_evaluate(cv_text, jd_text)
-                else:
-                    # CV-only evaluation (still use unified_evaluate but with empty JD)
-                    return self.llm.unified_evaluate(cv_text, "")
+                result = self.llm.unified_evaluate(cv_text, jd_text or "")
             except Exception as e:
                 logger.error(f"❌ LLM evaluation failed: {e}. Falling back to heuristics...")
 
         # ----------------
         # Heuristic fallback
         # ----------------
-        logger.warning("⚠️ Using heuristics fallback")
+        if result is None:
+            logger.warning("⚠️ Using heuristics fallback")
+            result = {
+                "cv_quality": heuristics.score_cv_quality(cv_text)
+            }
+            if jd_text and jd_text.strip():
+                jd_match = heuristics.score_jd_match(cv_text, jd_text)
+                result["jd_match"] = jd_match
+                result["fit_index"] = round(
+                    0.6 * jd_match["overall_score"] + 0.4 * result["cv_quality"]["overall_score"], 2
+                )
+                result["band"] = heuristics._band(result["fit_index"])
 
-        result = {
-            "cv_quality": heuristics.score_cv_quality(cv_text)
-        }
-
-        if jd_text and jd_text.strip():
-            jd_match = heuristics.score_jd_match(cv_text, jd_text)
-            result["jd_match"] = jd_match
-            result["fit_index"] = round(
-                0.6 * jd_match["overall_score"] + 0.4 * result["cv_quality"]["overall_score"], 2
-            )
-            result["band"] = heuristics._band(result["fit_index"])
+        # ----------------
+        # Final cleanup
+        # ----------------
+        if not jd_text or not jd_text.strip():
+            # remove JD-related fields if no JD provided
+            result.pop("jd_match", None)
+            result.pop("fit_index", None)
+            result.pop("band", None)
 
         return result
+
