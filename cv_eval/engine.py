@@ -115,7 +115,12 @@ class CVEvaluationEngine:
         # ----------------
         if self.use_llm and self.llm:
             try:
-                return self.llm.unified_evaluate(cv_text, jd_text or "")
+                if jd_text and jd_text.strip():
+                    # CV + JD evaluation
+                    return self.llm.unified_evaluate(cv_text, jd_text)
+                else:
+                    # CV-only evaluation
+                    return {"cv_quality": self.llm.score_cv_only(cv_text)}
             except Exception as e:
                 logger.error(f"❌ LLM evaluation failed: {e}. Falling back to heuristics...")
 
@@ -131,7 +136,6 @@ class CVEvaluationEngine:
         if jd_text and jd_text.strip():
             jd_match = heuristics.score_jd_match(cv_text, jd_text)
             result["jd_match"] = jd_match
-            # crude fit index
             result["fit_index"] = round(
                 0.6 * jd_match["overall_score"] + 0.4 * result["cv_quality"]["overall_score"], 2
             )
