@@ -3,20 +3,16 @@ import shutil, tempfile, os
 import pdfplumber
 from docx import Document
 import textract
+from bs4 import BeautifulSoup
 
-from apps.api.eval_engine_instance import evaluation_engine   # ✅ import from shared
-from cv_eval.schemas import CVEvaluationResult
+from apps.api.eval_engine_instance import evaluation_engine   # ✅ CVEvaluationEngine instance
+from cv_eval.improvement import Improvement
 
 router = APIRouter(prefix="/upload", tags=["upload"])
 
 # -----------------------
 # Helpers
 # -----------------------
-import os
-import pdfplumber
-from docx import Document
-import textract
-from bs4 import BeautifulSoup
 
 def extract_text_from_pdf(file_path: str) -> str:
     text = ""
@@ -73,7 +69,6 @@ def extract_text(file_path: str) -> str:
     else:
         raise ValueError(f"Unsupported file format: {ext}")
 
-
 def save_and_extract(upload: UploadFile) -> str:
     with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(upload.filename)[1]) as tmp:
         shutil.copyfileobj(upload.file, tmp)
@@ -85,6 +80,7 @@ def save_and_extract(upload: UploadFile) -> str:
 # -----------------------
 # Endpoints
 # -----------------------
+
 @router.post("/cv_evaluate")
 async def upload_and_evaluate_cv(
     file: UploadFile = File(...),
@@ -94,7 +90,7 @@ async def upload_and_evaluate_cv(
     """
     Upload CV (PDF/DOC/DOCX), and optionally JD (text or file).
     - If only CV is provided → CV-only evaluation
-    - If JD text/file provided → full CV vs JD evaluation
+    - If JD text/file provided → full CV vs JD evaluation (Fit Index)
     """
     try:
         cv_text = save_and_extract(file)
@@ -113,3 +109,39 @@ async def upload_and_evaluate_cv(
 
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Evaluation failed: {str(e)}")
+
+
+# -----------------------
+# Improvement Endpoint
+# -----------------------
+
+improvement_engine = Improvement()
+
+@router.post("/cv_improvement")
+async def upload_and_improve_cv(
+    file: UploadFile = File(...),
+    jd_text: str = Form("", description="JD text (required)"),
+    jd_file: UploadFile = File(None)
+):
+    """
+    Upload CV (PDF/DOC/DOCX) and JD (text or file) → generate improvements:
+    - Tailored Resume
+    - Top 1% Candidate Benchmark
+    - Cover Letter (returned last)
+    """
+    try:
+        cv_text = save_and_extract(file)
+
+        # Case 1: JD provided as plain text
+        if jd_text and jd_text.strip():
+            return improvement_engine.evaluate(cv_text, jd_text)
+
+        # Case 2: JD provided as a file
+        if jd_file is not None:
+            jd_extracted = save_and_extract(jd_file)
+            return improvement_engine.evaluate(cv_text, jd_extracted)
+
+        raise HTTPException(status_code=400, detail="JD is required for improvement")
+
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Improvement failed: {str(e)}")
