@@ -31,12 +31,11 @@ class Improvement:
         if not cv_text.strip() or not jd_text.strip():
             raise ValueError("Both CV text and JD text are required")
 
-        raw_output = self.llm.improvement(cv_text, jd_text)
+        result = self.llm.improvement(cv_text, jd_text)
 
-        try:
-            result = json.loads(raw_output)
-        except json.JSONDecodeError:
-            logger.error("❌ Groq LLM did not return valid JSON")
-            raise
+        if not isinstance(result, dict):
+            logger.error("❌ Groq LLM did not return a valid JSON dict")
+            raise ValueError("Improvement LLM did not return valid JSON")
 
         return result
+
