@@ -122,14 +122,16 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from cv_eval.engine import CVEvaluationEngine
+from cv_eval.improvement import Improvement
 
 router = APIRouter(
     prefix="/v1/cv",
     tags=["cv"],
 )
 
-# ---------- Init Engine ----------
+# ---------- Init Engines ----------
 evaluation_engine = CVEvaluationEngine()
+improvement_engine = Improvement()
 
 # ---------- Request DTOs ----------
 class CVScoreRequest(BaseModel):
@@ -140,19 +142,18 @@ class FitIndexRequest(BaseModel):
     jd_text: str = Field(..., description="Raw job description text")
     include_constraints: bool = True
 
+class ImprovementRequest(BaseModel):
+    cv_text: str = Field(..., description="Raw resume text")
+    jd_text: str = Field(..., description="Raw job description text")
 
 # ---------- Routes ----------
 @router.post("/score", summary="Score CV Quality (CV only)")
 def score_cv(payload: CVScoreRequest):
     """
-    Returns ONLY CV Quality scores (no JD match, no key takeaways).
+    Returns ONLY CV Quality scores (no JD match, no fit index).
     """
     try:
-        result = evaluation_engine.evaluate(
-            cv_text=payload.cv_text,
-            jd_text=""   # empty JD context
-        )
-        # ✅ Only return the CV quality portion
+        result = evaluation_engine.evaluate(cv_text=payload.cv_text, jd_text="")
         return {"cv_quality": result.get("cv_quality", {})}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"CV scoring failed: {str(e)}")
@@ -168,6 +169,24 @@ def score_fit_index(payload: FitIndexRequest):
             cv_text=payload.cv_text,
             jd_text=payload.jd_text
         )
-        return result  # 🚀 full enriched JSON
+        return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Fit Index scoring failed: {str(e)}")
+
+
+@router.post("/improvement", summary="Generate CV Improvements")
+def improve_cv(payload: ImprovementRequest):
+    """
+    Generates CV improvements:
+    - Tailored Resume
+    - Top 1% Candidate Benchmark
+    - Cover Letter (under 200 words, returned last)
+    """
+    try:
+        result = improvement_engine.evaluate(
+            cv_text=payload.cv_text,
+            jd_text=payload.jd_text
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Improvement generation failed: {str(e)}")

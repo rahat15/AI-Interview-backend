@@ -1,4 +1,6 @@
 from cv_eval.engine import CVEvaluationEngine
+from cv_eval.improvement import Improvement
 
-# Create a single shared instance at startup
+# Shared engine instances
 evaluation_engine = CVEvaluationEngine()
+improvement_engine = Improvement()
