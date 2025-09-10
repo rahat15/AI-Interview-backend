@@ -89,21 +89,21 @@ services:
       - interview-network
     restart: unless-stopped
 
-certbot:
-  image: certbot/certbot
-  container_name: certbot_ssl
-  volumes:
-    - certbot_data:/etc/letsencrypt
-    - certbot_www:/var/www/certbot   # must match nginx volume
-  entrypoint: /bin/sh -c "while :; do sleep 12h & wait $${!}; certbot renew; done"
-  networks:
-    - interview-network
+  certbot:   # 👈 must be indented here, inside "services"
+    image: certbot/certbot
+    container_name: certbot_ssl
+    volumes:
+      - certbot_data:/etc/letsencrypt
+      - certbot_www:/var/www/certbot   # must match nginx volume
+    entrypoint: /bin/sh -c "while :; do sleep 12h & wait $${!}; certbot renew; done"
+    networks:
+      - interview-network
 
 volumes:
   postgres_data:
   redis_data:
   certbot_data:
-  certbot_www:   # <— added
+  certbot_www:
 
 networks:
   interview-network:
