@@ -5,8 +5,8 @@ services:
     build:
       context: .
       dockerfile: dockerfile
-    expose:
-      - "8000"   # expose only inside the Docker network
+    ports:                      # 👈 change here
+      - "8000:8000"             # make FastAPI visible on host:8000
     environment:
       - DATABASE_URL=postgresql://postgres:password@postgres:5432/interview_coach
       - REDIS_URL=redis://redis:6379/0
@@ -15,7 +15,7 @@ services:
       - ACCESS_TOKEN_EXPIRE_MINUTES=30
       - API_V1_STR=/v1
       - PROJECT_NAME=Interview Coach API
-      - BACKEND_CORS_ORIGINS=["https://your-frontend-domain.com","http://localhost:3000"]
+      - BACKEND_CORS_ORIGINS=["http://localhost:3000"]
       - EMBEDDINGS_MODEL=local
     volumes:
       - ./uploads:/app/uploads
@@ -72,6 +72,15 @@ services:
     networks:
       - interview-network
     restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  interview-network:
+    driver: bridge
+
 
 #   nginx:
 #     image: nginx:latest
