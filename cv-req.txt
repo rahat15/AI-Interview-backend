@@ -32,7 +32,7 @@ python-multipart
 # Document Parsing
 pdfplumber
 python-docx
-# textract
+textract
 lxml
 
 # Testing (optional)
