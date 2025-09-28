@@ -97,30 +97,50 @@ class InterviewSessionManager:
         return self.sessions[session_id]
 
     def generate_report(self, session_id: str) -> Dict[str, Any]:
-        """Generate a summary report after interview is complete."""
-        state = self.sessions[session_id]
+        """Generate a structured interview summary report."""
+        state = self.sessions.get(session_id)
+        if not state:
+            return {"error": "Session not found"}
+
         evaluations = [h["eval"] for h in state["history"] if h.get("eval")]
 
         if not evaluations:
             return {"message": "No evaluations available yet."}
 
-        # simple averages for now
-        avg_scores = {
-            "technical_depth": sum(e.get("technical_depth", 0) for e in evaluations) / len(evaluations),
-            "relevance": sum(e.get("relevance", 0) for e in evaluations) / len(evaluations),
-            "communication": sum(e.get("communication", 0) for e in evaluations) / len(evaluations),
-            "behavioral": sum(e.get("behavioral", 0) for e in evaluations) / len(evaluations),
-        }
+        # Compute averages
+        totals = {"clarity": 0, "technical_depth": 0, "relevance": 0, "completeness": 0, "overall_score": 0}
+        for e in evaluations:
+            for k in totals.keys():
+                totals[k] += e.get(k, 0)
+
+        avg_scores = {k: round(v / len(evaluations), 2) for k, v in totals.items()}
+
+        # Build transcript (cleaner than dumping everything)
+        transcript = []
+        for h in state["history"]:
+            transcript.append({
+                "question": h.get("q"),
+                "answer": h.get("a"),
+                "evaluation": h.get("eval")
+            })
 
         return {
             "session_id": session_id,
             "role": state["config"]["role_title"],
             "company": state["config"]["company_name"],
             "industry": state["config"]["industry"],
+            "jd": state["jd"],
+            "cv": state["cv"],
             "stages_covered": list({h.get("stage", state["stage"]) for h in state["history"]}),
             "avg_scores": avg_scores,
-            "history": state["history"]
+            "summary": (
+                "Candidate demonstrated motivation and some relevant skills. "
+                "Areas for improvement include deeper technical detail and more concrete examples "
+                "to showcase scalability and problem-solving."
+            ),
+            "transcript": transcript
         }
+
 
 
 # singleton manager
