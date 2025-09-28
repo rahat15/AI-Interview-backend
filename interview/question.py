@@ -1,10 +1,10 @@
 import httpx
 import os
+import logging
 
-# Get Groq API key from environment
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL = os.getenv("LLM_MODEL")  # or change based on preference
+GROQ_MODEL = os.getenv("LLM_MODEL", "llama-3.1-8b-instant")
 
 async def generate_question(state, stage, followup=False):
     prompt = f"""
@@ -34,4 +34,13 @@ async def generate_question(state, stage, followup=False):
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.post(GROQ_API_URL, headers=headers, json=payload)
         data = resp.json()
+
+        # 🛑 Debug logging
+        logging.info("Groq response: %s", data)
+
+        if "choices" not in data:
+            # Return a safe fallback instead of crashing
+            error_msg = data.get("error", {}).get("message", "Unknown error from Groq")
+            return f"(Error generating question: {error_msg})"
+
         return data["choices"][0]["message"]["content"].strip()

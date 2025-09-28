@@ -1,5 +1,5 @@
 from langgraph.graph import StateGraph, END
-from apps.interview.stages import (
+from interview.stages import (
     intro_stage, hr_stage, technical_stage, behavioral_stage,
     managerial_stage, wrapup_stage
 )

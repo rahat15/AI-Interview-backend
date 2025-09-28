@@ -1,36 +1,39 @@
 # Core API
 fastapi==0.111.0
 uvicorn[standard]==0.32.1
-
-# Validation
-pydantic==2.10.4
-pydantic-settings==2.6.1
-
-# LLM provider
-groq>=0.9.0
-
-# Utilities
-python-dotenv==1.0.1
-
-# Testing (optional)
-pytest==7.4.4
-sqlalchemy
 gunicorn
 
+# Validation & Settings
+pydantic==2.10.4
+pydantic-settings==2.6.1
+python-dotenv==1.0.1
+
+# LLM Provider
+groq>=0.9.0
+httpx==0.27.2   # async HTTP client for Groq API calls
+
+# Orchestration
+langgraph>=0.0.48   # state machine for interview flow
+langchain-core>=0.2.30  # required by langgraph
+
+# Storage & Database
+redis==5.0.1
+sqlalchemy
 psycopg2-binary
 pgvector
+
+# Auth & Security
 python-jose[cryptography]
 passlib[bcrypt]
 
-# For handling file uploads
+# File Uploads
 python-multipart
 
-# PDF extraction
+# Document Parsing
 pdfplumber
-
-# DOCX extraction
 python-docx
-
-# Legacy DOC extraction (optional but useful for .doc, .odt, etc.)
-textract
+# textract
 lxml
+
+# Testing (optional)
+pytest==7.4.4

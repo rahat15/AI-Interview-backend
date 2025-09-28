@@ -49,3 +49,36 @@ async def evaluate_answer(user_answer, jd, cv):
             return json.loads(data["choices"][0]["message"]["content"])
         except Exception:
             return {"feedback": "Error parsing evaluation."}
+def summarize_scores(evaluations: list[dict]) -> dict:
+    """Aggregate evaluations into a final score report"""
+    if not evaluations:
+        return {
+            "technical_depth": 0,
+            "relevance": 0,
+            "communication": 0,
+            "behavioral": 0,
+            "overall": "No Data"
+        }
+
+    totals = {"technical_depth": 0, "relevance": 0, "communication": 0, "behavioral": 0}
+    count = len(evaluations)
+
+    for ev in evaluations:
+        totals["technical_depth"] += ev.get("technical_depth", 0)
+        totals["relevance"] += ev.get("relevance", 0)
+        totals["communication"] += ev.get("communication", 0)
+        totals["behavioral"] += ev.get("behavioral", 0)
+
+    averages = {k: round(v / count, 2) for k, v in totals.items()}
+
+    overall_score = sum(averages.values()) / len(averages)
+    if overall_score >= 8.5:
+        overall = "Strong Hire"
+    elif overall_score >= 7:
+        overall = "Hire"
+    elif overall_score >= 5:
+        overall = "Weak Hire"
+    else:
+        overall = "No Hire"
+
+    return {**averages, "overall": overall}

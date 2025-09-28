@@ -1,17 +1,28 @@
-from cv_eval.engine import CVEvaluationEngine
+import os
+import httpx
+from dotenv import load_dotenv
 
-def main():
-    with open("samples/sample_cv.txt") as f:
-        cv_text = f.read()
-    with open("samples/sample_jd.txt") as f:
-        jd_text = f.read()
+load_dotenv()  # load .env if not already loaded
 
-    engine = CVEvaluationEngine(use_llm=True)
-    result = engine.evaluate(cv_text, jd_text)
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GROQ_MODEL = os.getenv("LLM_MODEL", "llama-3.1-70b-versatile")
 
-    print("🔍 Raw JSON result from LLM:")
-    import json
-    print(json.dumps(result, indent=2))
+if not GROQ_API_KEY:
+    raise RuntimeError("❌ GROQ_API_KEY not set in environment!")
 
-if __name__ == "__main__":
-    main()
+url = "https://api.groq.com/openai/v1/chat/completions"
+headers = {
+    "Authorization": f"Bearer {GROQ_API_KEY}",
+    "Content-Type": "application/json",
+}
+payload = {
+    "model": GROQ_MODEL,
+    "messages": [{"role": "user", "content": "Hello Groq! Just say 'pong' if you can hear me."}],
+    "max_tokens": 20,
+}
+
+print("🔄 Sending test request to Groq...")
+resp = httpx.post(url, headers=headers, json=payload, timeout=30)
+
+print("Status:", resp.status_code)
+print("Response:", resp.json())
