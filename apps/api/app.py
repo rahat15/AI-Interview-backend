@@ -1,144 +1,78 @@
-# apps/api/routers/interview.py
-
-import os
+# apps/api/app.py
+from contextlib import asynccontextmanager
 import logging
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
-from typing import Optional, List, Dict, Any
-from groq import Groq
 
+from dotenv import load_dotenv
+load_dotenv() 
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.gzip import GZipMiddleware
+
+# ✨ Existing routers
+# from apps.api.routers.auth import router as auth_router
+# from apps.api.routers.evaluation import router as evaluation_router
+# from apps.api.routers.sessions import router as sessions_router
+from apps.api.routers.cv import router as cv_router
+from apps.api.routers.upload import router as upload_router  
+from apps.api.routers.interview import router as interview_router   # ✅ NEW
+
+# If you have a settings module, great; otherwise hardcode minimal defaults
+try:
+    from apps.api.settings import settings  # optional convenience
+    APP_NAME = settings.project_name
+    API_PREFIX = settings.api_v1_str
+    CORS_ORIGINS = settings.backend_cors_origins
+except Exception:
+    APP_NAME = "Interview Coach API"
+    API_PREFIX = "/"
+    CORS_ORIGINS = ["*"]
+
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/v1/interview", tags=["interview"])
 
-# ── Load environment ─────────────────────────────────────────
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-LLM_MODEL = os.getenv("LLM_MODEL", "llama-3.1-8b-instant")
-
-if not GROQ_API_KEY:
-    logger.warning("⚠️ GROQ_API_KEY not set. Groq client may fail.")
-
-try:
-    client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
-except Exception as e:
-    logger.error(f"Failed to initialize Groq client: {e}")
-    client = None
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("🚀 Starting %s", APP_NAME)
+    yield
+    logger.info("🛑 Shutting down")
 
 
-# ── Data Models ──────────────────────────────────────────────
-class InterviewStartRequest(BaseModel):
-    session_id: str
-    role_title: str
-    company_name: str
-    industry: Optional[str] = None
-    jd: str
-    cv: str
-
-
-class InterviewResponseRequest(BaseModel):
-    session_id: str
-    user_answer: str
-
-
-class InterviewState(BaseModel):
-    session_id: str
-    config: Dict[str, Any]
-    jd: str
-    cv: str
-    stage: str
-    history: List[Dict[str, Any]]
-    should_follow_up: bool
-    completed: bool
-
-
-# ── In-memory store (replace with Redis/DB later) ─────────────
-SESSIONS: Dict[str, InterviewState] = {}
-
-
-# ── Helpers ──────────────────────────────────────────────────
-def generate_question(prompt: str) -> str:
-    """Call Groq API to generate a question from prompt."""
-    if not client:
-        return "(Error: Groq client not initialized. Missing GROQ_API_KEY.)"
-
-    try:
-        response = client.chat.completions.create(
-            model=LLM_MODEL,
-            messages=[
-                {"role": "system", "content": "You are a professional interviewer."},
-                {"role": "user", "content": prompt},
-            ],
-            max_tokens=200,
-        )
-        # Defensive check: Groq might return malformed or empty responses
-        if not response.choices:
-            return "(Error: No choices returned from LLM)"
-        content = response.choices[0].message.get("content", "").strip()
-        return content or "(Error: Empty response from LLM)"
-    except Exception as e:
-        logger.error(f"Error generating question: {e}", exc_info=True)
-        return f"(Error generating question: {e})"
-
-
-# ── Routes ───────────────────────────────────────────────────
-@router.post("/start")
-async def start_interview(req: InterviewStartRequest):
-    """Initialize interview session and return the first question."""
-
-    intro_prompt = (
-        f"You are interviewing a candidate for the role of {req.role_title} "
-        f"at {req.company_name} in the {req.industry or 'general'} industry.\n\n"
-        f"Job description:\n{req.jd}\n\n"
-        f"Candidate CV:\n{req.cv}\n\n"
-        f"Start the interview by asking an introductory question."
+def create_app() -> FastAPI:
+    app = FastAPI(
+        title=APP_NAME,
+        version="1.0.0",
+        lifespan=lifespan,
+        docs_url="/docs",
+        redoc_url="/redoc",
+        openapi_url="/openapi.json",
     )
 
-    first_question = generate_question(intro_prompt)
-
-    state = InterviewState(
-        session_id=req.session_id,
-        config={
-            "role_title": req.role_title,
-            "company_name": req.company_name,
-            "industry": req.industry,
-        },
-        jd=req.jd,
-        cv=req.cv,
-        stage="intro",
-        history=[{"q": first_question, "a": None, "eval": None}],
-        should_follow_up=False,
-        completed=False,
+    # ── Middleware ──────────────────────────────────────────────
+    app.add_middleware(GZipMiddleware, minimum_size=500)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=CORS_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
 
-    SESSIONS[req.session_id] = state
-    return {"question": first_question, "state": state.dict()}
+    # ── Health ──────────────────────────────────────────────────
+    @app.get("/healthz", tags=["health"])
+    async def healthz():
+        return {"status": "ok"}
+
+    # ── Routers (versioned inside each router via prefix) ────────
+    # app.include_router(auth_router)
+    # app.include_router(evaluation_router)
+    # app.include_router(sessions_router)
+    app.include_router(cv_router)           
+    app.include_router(upload_router) 
+    app.include_router(interview_router)    # ✅ add interview endpoints
+
+    return app
 
 
-@router.post("/respond")
-async def respond_interview(req: InterviewResponseRequest):
-    """Handle candidate’s answer and generate follow-up or next question."""
-
-    state = SESSIONS.get(req.session_id)
-    if not state:
-        raise HTTPException(status_code=404, detail="Session not found")
-
-    # Get last question
-    last_q = state.history[-1]["q"]
-
-    # Store user’s answer
-    state.history[-1]["a"] = req.user_answer
-
-    followup_prompt = (
-        f"Previous question: {last_q}\n"
-        f"Candidate answer: {req.user_answer}\n\n"
-        "Decide whether to ask a follow-up question (if the answer is incomplete) "
-        "or move to the next relevant interview question. Just output the next question."
-    )
-
-    next_question = generate_question(followup_prompt)
-
-    state.history.append({"q": next_question, "a": None, "eval": None})
-    state.stage = "ongoing"
-    SESSIONS[state.session_id] = state
-
-    return {"question": next_question, "state": state.dict()}
+app = create_app()
