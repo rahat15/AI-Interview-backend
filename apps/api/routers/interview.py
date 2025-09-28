@@ -125,27 +125,53 @@ async def start_interview(req: InterviewStartRequest):
 
 @router.post("/respond")
 async def respond_interview(req: InterviewResponseRequest):
-    """Handle candidate’s answer and generate follow-up or next question."""
+    """Handle candidate’s answer, evaluate it, and generate follow-up or next question."""
     state = SESSIONS.get(req.session_id)
     if not state:
         raise HTTPException(status_code=404, detail="Session not found")
 
+    # Get last question
     last_q = state.history[-1]["q"]
+
+    # Store user’s answer
     state.history[-1]["a"] = req.user_answer
 
+    # ── NEW: Evaluate the answer ─────────────────────────────
+    eval_prompt = (
+        f"Question: {last_q}\n"
+        f"Candidate answer: {req.user_answer}\n\n"
+        "Please evaluate this answer on clarity, technical depth, relevance, and completeness. "
+        "Return a short structured JSON with fields: clarity, technical_depth, relevance, completeness, overall_score (0-10), feedback."
+    )
+
+    eval_text = generate_question(eval_prompt)
+
+    try:
+        # Try parsing as JSON if LLM outputs valid JSON
+        import json
+        evaluation = json.loads(eval_text)
+    except Exception:
+        # If parsing fails, just store raw text
+        evaluation = {"feedback": eval_text}
+
+    state.history[-1]["eval"] = evaluation
+
+    # ── Generate next question ──────────────────────────────
     followup_prompt = (
         f"Previous question: {last_q}\n"
         f"Candidate answer: {req.user_answer}\n\n"
         "Decide whether to ask a follow-up question (if the answer is incomplete) "
         "or move to the next relevant interview question. Just output the next question."
     )
+
     next_question = generate_question(followup_prompt)
 
     state.history.append({"q": next_question, "a": None, "eval": None})
     state.stage = "ongoing"
     SESSIONS[state.session_id] = state
 
-    return {"question": next_question, "state": state.dict()}
+    return {"evaluation": evaluation, "question": next_question, "state": state.dict()}
+
 
 
 @router.post("/answer")
