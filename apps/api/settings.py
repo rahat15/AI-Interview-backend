@@ -8,7 +8,7 @@ class Settings(BaseSettings):
 
     # LLM default provider/model read by evaluations/llm_scorer.py
     LLM_PROVIDER: str = "groq"
-    LLM_MODEL: str = "llama3-8b-8192"
+    LLM_MODEL: str = "llama-3.1-8b-instant"
 
     # Provider keys (only the ones you use need to be set in .env)
     GROQ_API_KEY: str | None = None
