@@ -63,8 +63,10 @@ SESSIONS: Dict[str, InterviewState] = {}
 
 # ── Helpers ─────────────────────────────────────────────────
 def generate_question(prompt: str) -> str:
+    """Call Groq API to generate a question from prompt."""
     if not client:
-        return "(Error: Groq client not initialized.)"
+        return "(Error: Groq client not initialized. Missing GROQ_API_KEY.)"
+
     try:
         response = client.chat.completions.create(
             model=LLM_MODEL,
@@ -75,11 +77,18 @@ def generate_question(prompt: str) -> str:
             max_tokens=200,
         )
         if not response.choices:
-            return "(Error: No choices returned)"
-        return response.choices[0].message.get("content", "").strip() or "(Error: Empty response)"
+            return "(Error: No choices returned from LLM)"
+        
+        # ✅ Fix: ChatCompletionMessage is an object, not a dict
+        content = getattr(response.choices[0].message, "content", None)
+        if not content:
+            return "(Error: Empty response from LLM)"
+        return content.strip()
+
     except Exception as e:
         logger.error(f"LLM error: {e}", exc_info=True)
         return f"(Error generating question: {e})"
+
 
 
 # ── Endpoints ───────────────────────────────────────────────
