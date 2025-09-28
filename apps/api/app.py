@@ -1,7 +1,8 @@
 # apps/api/routers/interview.py
+
 import os
 import logging
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 from groq import Groq
@@ -10,14 +11,21 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/v1/interview", tags=["interview"])
 
-# Load env
+# ── Load environment ─────────────────────────────────────────
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 LLM_MODEL = os.getenv("LLM_MODEL", "llama-3.1-8b-instant")
 
-client = Groq(api_key=GROQ_API_KEY)
+if not GROQ_API_KEY:
+    logger.warning("⚠️ GROQ_API_KEY not set. Groq client may fail.")
+
+try:
+    client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
+except Exception as e:
+    logger.error(f"Failed to initialize Groq client: {e}")
+    client = None
 
 
-# ── Data Models ───────────────────────────────────────────────
+# ── Data Models ──────────────────────────────────────────────
 class InterviewStartRequest(BaseModel):
     session_id: str
     role_title: str
@@ -43,13 +51,16 @@ class InterviewState(BaseModel):
     completed: bool
 
 
-# ── In-memory store (replace with Redis/DB later) ──────────────
+# ── In-memory store (replace with Redis/DB later) ─────────────
 SESSIONS: Dict[str, InterviewState] = {}
 
 
-# ── Helpers ───────────────────────────────────────────────────
+# ── Helpers ──────────────────────────────────────────────────
 def generate_question(prompt: str) -> str:
     """Call Groq API to generate a question from prompt."""
+    if not client:
+        return "(Error: Groq client not initialized. Missing GROQ_API_KEY.)"
+
     try:
         response = client.chat.completions.create(
             model=LLM_MODEL,
@@ -59,13 +70,17 @@ def generate_question(prompt: str) -> str:
             ],
             max_tokens=200,
         )
-        return response.choices[0].message.content.strip()
+        # Defensive check: Groq might return malformed or empty responses
+        if not response.choices:
+            return "(Error: No choices returned from LLM)"
+        content = response.choices[0].message.get("content", "").strip()
+        return content or "(Error: Empty response from LLM)"
     except Exception as e:
-        logger.error(f"Error generating question: {e}")
+        logger.error(f"Error generating question: {e}", exc_info=True)
         return f"(Error generating question: {e})"
 
 
-# ── Routes ────────────────────────────────────────────────────
+# ── Routes ───────────────────────────────────────────────────
 @router.post("/start")
 async def start_interview(req: InterviewStartRequest):
     """Initialize interview session and return the first question."""
@@ -73,8 +88,8 @@ async def start_interview(req: InterviewStartRequest):
     intro_prompt = (
         f"You are interviewing a candidate for the role of {req.role_title} "
         f"at {req.company_name} in the {req.industry or 'general'} industry.\n\n"
-        f"Job description: {req.jd}\n\n"
-        f"Candidate CV: {req.cv}\n\n"
+        f"Job description:\n{req.jd}\n\n"
+        f"Candidate CV:\n{req.cv}\n\n"
         f"Start the interview by asking an introductory question."
     )
 
@@ -96,16 +111,16 @@ async def start_interview(req: InterviewStartRequest):
     )
 
     SESSIONS[req.session_id] = state
-
     return {"question": first_question, "state": state.dict()}
 
 
 @router.post("/respond")
 async def respond_interview(req: InterviewResponseRequest):
     """Handle candidate’s answer and generate follow-up or next question."""
+
     state = SESSIONS.get(req.session_id)
     if not state:
-        return {"error": "Session not found"}
+        raise HTTPException(status_code=404, detail="Session not found")
 
     # Get last question
     last_q = state.history[-1]["q"]
@@ -113,7 +128,6 @@ async def respond_interview(req: InterviewResponseRequest):
     # Store user’s answer
     state.history[-1]["a"] = req.user_answer
 
-    # Ask model whether to follow up or move on
     followup_prompt = (
         f"Previous question: {last_q}\n"
         f"Candidate answer: {req.user_answer}\n\n"
