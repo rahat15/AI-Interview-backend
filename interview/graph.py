@@ -90,7 +90,9 @@ def build_graph(config: dict):
 
     # ✅ Branch after stage_transition
     def decide_next(state: InterviewState) -> str:
+        print("DEBUG >> stage_transition sees stage =", state.get("stage"))
         return "end" if state.get("stage") == "wrap-up" else "ask_question"
+
 
     g.add_conditional_edges(
         "stage_transition",
