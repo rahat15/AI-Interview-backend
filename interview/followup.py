@@ -9,7 +9,7 @@ import httpx
 import os
 import json
 import logging
-from ..prompts import FOLLOWUP_DECISION_PROMPT
+from interview.prompts import FOLLOWUP_DECISION_PROMPT
 
 # Config
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
