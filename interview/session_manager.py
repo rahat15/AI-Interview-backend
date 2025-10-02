@@ -1,147 +1,105 @@
-from typing import Dict, Any, List
-from interview.question import generate_question
-from interview.evaluate.judge import evaluate_answer
-from interview.followup import should_followup
+from typing import Dict, Any
+from .graph import build_graph
+from .evaluate.judge import summarize_scores
+
 
 class InterviewSessionManager:
     """
     Manage interview sessions:
-    - Tracks state
-    - Generates questions
-    - Stores answers
-    - Triggers evaluations & follow-ups
+    - Tracks state (per user, per session)
+    - Interfaces with LangGraph flow
+    - Stores answers, evaluations, and reports
     """
 
     def __init__(self):
-        # store sessions in memory (Redis/Postgres later)
+        # Structure: { user_id: { session_id: state } }
         self.sessions: Dict[str, Dict[str, Any]] = {}
+        self.graphs: Dict[str, Dict[str, Any]] = {}
 
     def create_session(
         self,
+        user_id: str,
         session_id: str,
         role_title: str,
         company_name: str,
         industry: str,
         jd: str,
         cv: str,
-        stage: str = "intro"
+        round_type: str = "full"
     ) -> Dict[str, Any]:
-        """Initialize a new interview session."""
-        state = {
+        """
+        Initialize a new interview session and build its graph.
+        """
+        config = {
+            "role_title": role_title,
+            "company_name": company_name,
+            "industry": industry,
+            "round_type": round_type,
+            "user_id": user_id,
             "session_id": session_id,
-            "config": {
-                "role_title": role_title,
-                "company_name": company_name,
-                "industry": industry,
-            },
-            "jd": jd,
-            "cv": cv,
-            "stage": stage,
-            "history": [],       # list of {q, a, eval}
-            "should_follow_up": False,
-            "completed": False,
         }
-        self.sessions[session_id] = state
+
+        graph = build_graph(config=config, jd=jd, cv=cv)
+        state = graph.get_state()  # initial compiled graph state
+
+        # Ensure user exists
+        if user_id not in self.sessions:
+            self.sessions[user_id] = {}
+            self.graphs[user_id] = {}
+
+        self.sessions[user_id][session_id] = state
+        self.graphs[user_id][session_id] = graph
+
         return state
 
-    async def get_next_question(self, session_id: str) -> str:
-        """Get the next question (or follow-up if needed)."""
-        state = self.sessions[session_id]
+    async def step(self, user_id: str, session_id: str, user_answer: str = None) -> Dict[str, Any]:
+        """
+        Advance one step in the interview flow.
+        """
+        if user_id not in self.graphs or session_id not in self.graphs[user_id]:
+            raise ValueError("Session not found")
 
-        q = await generate_question(
-            state=state,
-            stage=state.get("stage", "intro"),
-            followup=state.get("should_follow_up", False)
-        )
+        graph = self.graphs[user_id][session_id]
+        state = self.sessions[user_id][session_id]
 
-        # store placeholder in history
-        state["history"].append({"q": q, "a": None, "eval": None})
-        self.sessions[session_id] = state
-        return q
+        updated_state = await graph.step(state, user_answer=user_answer)
+        self.sessions[user_id][session_id] = updated_state
 
-    async def submit_answer(self, session_id: str, answer_text: str) -> Dict[str, Any]:
-        """Submit an answer, run evaluation, and decide follow-up."""
-        state = self.sessions[session_id]
-        history = state["history"]
+        return updated_state
 
-        if not history:
-            raise ValueError("No question has been asked yet.")
-
-        # attach answer
-        history[-1]["a"] = answer_text
-
-        # evaluate answer
-        eval_result = await evaluate_answer(
-            user_answer=answer_text,
-            jd=state["jd"],
-            cv=state["cv"]
-        )
-        history[-1]["eval"] = eval_result
-
-        # decide follow-up
-        state["should_follow_up"] = should_followup(eval_result)
-
-        self.sessions[session_id] = state
-        return eval_result
-
-    def advance_stage(self, session_id: str, new_stage: str) -> Dict[str, Any]:
-        """Manually move to the next stage (e.g., from intro → technical)."""
-        state = self.sessions[session_id]
-        state["stage"] = new_stage
-        state["should_follow_up"] = False
-        self.sessions[session_id] = state
-        return state
-
-    def get_state(self, session_id: str) -> Dict[str, Any]:
+    def get_state(self, user_id: str, session_id: str) -> Dict[str, Any]:
         """Return current session state."""
-        return self.sessions[session_id]
+        return self.sessions.get(user_id, {}).get(session_id, {})
 
-    def generate_report(self, session_id: str) -> Dict[str, Any]:
-        """Generate a structured interview summary report."""
-        state = self.sessions.get(session_id)
+    def get_user_sessions(self, user_id: str) -> Dict[str, Any]:
+        """Return all sessions for a user."""
+        return self.sessions.get(user_id, {})
+
+    def generate_report(self, user_id: str, session_id: str) -> Dict[str, Any]:
+        """
+        Generate a structured summary report for a specific session.
+        """
+        state = self.sessions.get(user_id, {}).get(session_id)
         if not state:
             return {"error": "Session not found"}
 
-        evaluations = [h["eval"] for h in state["history"] if h.get("eval")]
+        evaluations = [h.get("evaluation") for h in state.get("history", []) if h.get("evaluation")]
 
         if not evaluations:
             return {"message": "No evaluations available yet."}
 
-        # Compute averages
-        totals = {"clarity": 0, "technical_depth": 0, "relevance": 0, "completeness": 0, "overall_score": 0}
-        for e in evaluations:
-            for k in totals.keys():
-                totals[k] += e.get(k, 0)
-
-        avg_scores = {k: round(v / len(evaluations), 2) for k, v in totals.items()}
-
-        # Build transcript (cleaner than dumping everything)
-        transcript = []
-        for h in state["history"]:
-            transcript.append({
-                "question": h.get("q"),
-                "answer": h.get("a"),
-                "evaluation": h.get("eval")
-            })
+        summary = summarize_scores(evaluations)
 
         return {
+            "user_id": user_id,
             "session_id": session_id,
             "role": state["config"]["role_title"],
             "company": state["config"]["company_name"],
             "industry": state["config"]["industry"],
-            "jd": state["jd"],
-            "cv": state["cv"],
-            "stages_covered": list({h.get("stage", state["stage"]) for h in state["history"]}),
-            "avg_scores": avg_scores,
-            "summary": (
-                "Candidate demonstrated motivation and some relevant skills. "
-                "Areas for improvement include deeper technical detail and more concrete examples "
-                "to showcase scalability and problem-solving."
-            ),
-            "transcript": transcript
+            "avg_scores": summary,
+            "history": state["history"],
         }
 
 
-
-# singleton manager
+# Singleton manager
 interview_manager = InterviewSessionManager()

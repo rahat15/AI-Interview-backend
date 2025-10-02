@@ -1,4 +1,3 @@
-# apps/api/app.py
 from contextlib import asynccontextmanager
 import logging
 
@@ -15,7 +14,7 @@ from starlette.middleware.gzip import GZipMiddleware
 # from apps.api.routers.sessions import router as sessions_router
 from apps.api.routers.cv import router as cv_router
 from apps.api.routers.upload import router as upload_router  
-from apps.api.routers.interview import router as interview_router   # ✅ NEW
+from apps.api.interview_routes import router as interview_router   # ✅ FIXED
 
 # If you have a settings module, great; otherwise hardcode minimal defaults
 try:
@@ -64,13 +63,10 @@ def create_app() -> FastAPI:
     async def healthz():
         return {"status": "ok"}
 
-    # ── Routers (versioned inside each router via prefix) ────────
-    # app.include_router(auth_router)
-    # app.include_router(evaluation_router)
-    # app.include_router(sessions_router)
+    # ── Routers ────────────────────────────────────────────────
     app.include_router(cv_router)           
     app.include_router(upload_router) 
-    app.include_router(interview_router)    # ✅ add interview endpoints
+    app.include_router(interview_router)    # ✅ Interview endpoints mounted
 
     return app
 
