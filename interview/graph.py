@@ -1,40 +1,20 @@
 from langgraph.graph import StateGraph, END
-from interview.stages import (
-    intro_stage, hr_stage, technical_stage,
-    behavioral_stage, managerial_stage, wrapup_stage,
-)
 from interview.question import generate_question
 from interview.evaluate.judge import evaluate_answer
 from interview.followup import followup_decision
 
 
-# ---- Shared State ----
 class InterviewState(dict):
-    """
-    State is a dict-like object tracking interview progress.
-    Keys:
-        - stage: current stage (intro/hr/etc.)
-        - history: list of {question, answer, evaluation}
-        - should_follow_up: bool
-        - config: role, company, industry
-        - jd, cv: text data
-    """
     pass
 
 
-# ---- Graph Node Functions ----
+# ---- Flow Nodes ----
 
 async def ask_question(state: InterviewState) -> InterviewState:
-    """Generate a new question based on stage & history."""
     stage = state.get("stage", "intro")
     followup = state.get("should_follow_up", False)
 
-    q = await generate_question(
-        state=state,
-        stage=stage,
-        followup=followup,
-    )
-
+    q = await generate_question(state, stage, followup)
     state.setdefault("history", []).append(
         {"question": q, "answer": None, "evaluation": None, "stage": stage}
     )
@@ -43,7 +23,6 @@ async def ask_question(state: InterviewState) -> InterviewState:
 
 
 async def evaluate_answer_node(state: InterviewState) -> InterviewState:
-    """Evaluate the last answer."""
     if not state.get("history"):
         return state
 
@@ -62,16 +41,13 @@ async def evaluate_answer_node(state: InterviewState) -> InterviewState:
 
 
 def followup_node(state: InterviewState) -> InterviewState:
-    """Decide if a follow-up is needed."""
     last = state["history"][-1] if state.get("history") else {}
     eval_result = last.get("evaluation", {})
-
     state["should_follow_up"] = followup_decision(eval_result)
     return state
 
 
 def stage_transition(state: InterviewState) -> InterviewState:
-    """Move to the next stage if no follow-up is required."""
     if state.get("should_follow_up"):
         return state  # stay in same stage
 
@@ -87,33 +63,22 @@ def stage_transition(state: InterviewState) -> InterviewState:
     return state
 
 
-# ---- Build Graph ----
+# ---- Graph Build ----
 
 def build_graph(config: dict):
     g = StateGraph(InterviewState)
 
-    # Register stage nodes
-    g.add_node("intro", intro_stage)
-    g.add_node("hr", hr_stage)
-    g.add_node("technical", technical_stage)
-    g.add_node("behavioral", behavioral_stage)
-    g.add_node("managerial", managerial_stage)
-    g.add_node("wrap-up", wrapup_stage)
-
-    # Register flow nodes
+    # Only flow nodes, no dead-ends
     g.add_node("ask_question", ask_question)
     g.add_node("evaluate_answer", evaluate_answer_node)
     g.add_node("followup_decision", followup_node)
     g.add_node("stage_transition", stage_transition)
 
-    # Entry point
     g.set_entry_point("ask_question")
 
-    # Flow
     g.add_edge("ask_question", "evaluate_answer")
     g.add_edge("evaluate_answer", "followup_decision")
 
-    # ✅ Use conditional edges instead of duplicate
     g.add_conditional_edges(
         "followup_decision",
         lambda state: "ask_question" if state.get("should_follow_up") else "stage_transition",
@@ -124,6 +89,6 @@ def build_graph(config: dict):
     )
 
     g.add_edge("stage_transition", "ask_question")
-    g.add_edge("wrap-up", END)
+    g.add_edge("stage_transition", END)  # allow termination if stage == wrap-up
 
     return g.compile()
