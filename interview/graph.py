@@ -92,7 +92,7 @@ def stage_transition(state: InterviewState) -> InterviewState:
 def build_graph(config: dict):
     g = StateGraph(InterviewState)
 
-    # Register stage nodes (setup/instruction)
+    # Register stage nodes
     g.add_node("intro", intro_stage)
     g.add_node("hr", hr_stage)
     g.add_node("technical", technical_stage)
@@ -106,15 +106,24 @@ def build_graph(config: dict):
     g.add_node("followup_decision", followup_node)
     g.add_node("stage_transition", stage_transition)
 
-    # Wire edges
+    # Entry point
     g.set_entry_point("ask_question")
 
+    # Flow
     g.add_edge("ask_question", "evaluate_answer")
     g.add_edge("evaluate_answer", "followup_decision")
-    g.add_edge("followup_decision", "ask_question")       # if follow-up needed
-    g.add_edge("followup_decision", "stage_transition")   # else advance stage
-    g.add_edge("stage_transition", "ask_question")
 
-    g.add_edge("wrap-up", END)  # end interview
+    # ✅ Use conditional edges instead of duplicate
+    g.add_conditional_edges(
+        "followup_decision",
+        lambda state: "ask_question" if state.get("should_follow_up") else "stage_transition",
+        {
+            "ask_question": "ask_question",
+            "stage_transition": "stage_transition",
+        },
+    )
+
+    g.add_edge("stage_transition", "ask_question")
+    g.add_edge("wrap-up", END)
 
     return g.compile()
