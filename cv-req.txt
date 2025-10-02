@@ -14,7 +14,7 @@ httpx==0.27.2   # keep if you want raw HTTP calls
 
 # Orchestration
 langgraph==0.0.48
-langchain-core==0.2.30
+langchain-core==0.1.52
 
 # Storage & Database (optional now, needed when persisting sessions)
 redis==5.0.1
