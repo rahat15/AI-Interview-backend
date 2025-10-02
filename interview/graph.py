@@ -89,15 +89,18 @@ def build_graph(config: dict):
         },
     )
 
-    # ✅ Branch after stage_transition → either loop or END
-    g.add_conditional_edges(
-    "stage_transition",
-    lambda state: "__end__" if state.get("stage") == "wrap-up" else "ask_question",
-    {
-        "__end__": END,
-        "ask_question": "ask_question",
-    },
-    )
+    # ✅ Branch after stage_transition
+    def decide_next(state: InterviewState):
+        if state.get("stage") == "wrap-up":
+            return END   # return END directly
+        return "ask_question"
 
+    g.add_conditional_edges(
+        "stage_transition",
+        decide_next,
+        {
+            "ask_question": "ask_question",
+        },
+    )
 
     return g.compile()
