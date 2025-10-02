@@ -49,7 +49,7 @@ def followup_node(state: InterviewState) -> InterviewState:
 
 def stage_transition(state: InterviewState) -> InterviewState:
     if state.get("should_follow_up"):
-        return state  # stay in same stage
+        return state
 
     stages = ["intro", "technical", "behavioral", "hr", "managerial", "wrap-up"]
     current = state.get("stage", "intro")
@@ -89,14 +89,15 @@ def build_graph(config: dict):
         },
     )
 
-    # ✅ Branch after stage_transition
+    # ✅ Branch after stage_transition → either loop or END
     g.add_conditional_edges(
-        "stage_transition",
-        lambda state: END if state.get("stage") == "wrap-up" else "ask_question",
-        {
-            END: END,
-            "ask_question": "ask_question",
-        },
+    "stage_transition",
+    lambda state: "__end__" if state.get("stage") == "wrap-up" else "ask_question",
+    {
+        "__end__": END,
+        "ask_question": "ask_question",
+    },
     )
+
 
     return g.compile()
