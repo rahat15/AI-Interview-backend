@@ -68,7 +68,6 @@ def stage_transition(state: InterviewState) -> InterviewState:
 def build_graph(config: dict):
     g = StateGraph(InterviewState)
 
-    # Flow nodes
     g.add_node("ask_question", ask_question)
     g.add_node("evaluate_answer", evaluate_answer_node)
     g.add_node("followup_decision", followup_node)
@@ -79,7 +78,6 @@ def build_graph(config: dict):
     g.add_edge("ask_question", "evaluate_answer")
     g.add_edge("evaluate_answer", "followup_decision")
 
-    # Branch after followup_decision
     g.add_conditional_edges(
         "followup_decision",
         lambda state: "ask_question" if state.get("should_follow_up") else "stage_transition",
@@ -89,16 +87,14 @@ def build_graph(config: dict):
         },
     )
 
-    # ✅ Branch after stage_transition
     def decide_next(state: InterviewState):
-        if state.get("stage") == "wrap-up":
-            return END   # return END directly
-        return "ask_question"
+        return "end" if state.get("stage") == "wrap-up" else "ask_question"
 
     g.add_conditional_edges(
         "stage_transition",
         decide_next,
         {
+            "end": END,
             "ask_question": "ask_question",
         },
     )
