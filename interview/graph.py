@@ -103,7 +103,8 @@ def stage_transition_node(state: InterviewState) -> InterviewState:
 
 # ---- Graph Build ----
 
-def build_graph():
+# ✅ FIXED: Added the 'config' parameter back to the function signature.
+def build_graph(config: dict):
     # Using the TypedDict for better type hinting and clarity
     g = StateGraph(InterviewState)
 
