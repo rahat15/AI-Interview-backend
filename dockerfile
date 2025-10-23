@@ -9,7 +9,9 @@ WORKDIR /app
 # =========================================
 # 🧱 Install system-level dependencies
 # =========================================
+# Install system dependencies required for textract + OCR + git
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
     build-essential \
     swig \
     libpulse-dev \
@@ -23,6 +25,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     antiword \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
 
 # =========================================
 # 📦 Install Python dependencies
