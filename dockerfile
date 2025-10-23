@@ -1,8 +1,14 @@
+# =========================================
+# 🐍 Base Image
+# =========================================
 FROM python:3.11-slim
 
+# Set working directory
 WORKDIR /app
 
-# Install system dependencies required for textract + pocketsphinx + OCR
+# =========================================
+# 🧱 Install system-level dependencies
+# =========================================
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     swig \
@@ -18,23 +24,28 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Upgrade pip
-RUN pip install --no-cache-dir --upgrade pip
-
-
-# Install Python dependencies (pin pip below 24.1 for textract)
+# =========================================
+# 📦 Install Python dependencies
+# =========================================
 COPY cv-req.txt .
+# (textract-tr requires pip < 24.1)
 RUN pip install --no-cache-dir "pip<24.1" && \
     pip install --no-cache-dir -r cv-req.txt
 
-
-# Copy app code
+# =========================================
+# 📁 Copy the rest of the application
+# =========================================
 COPY . /app
 
-# Ensure app imports work
+# Ensure imports work across submodules
 ENV PYTHONPATH=/app
 
+# =========================================
+# 🌐 Expose FastAPI port
+# =========================================
 EXPOSE 8000
 
-# Run app with Gunicorn + Uvicorn workers
-CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "apps.api.app:app", "--chdir", "/app", "--bind", "0.0.0.0:8000", "--workers", "4"]
+# =========================================
+# 🚀 Start FastAPI via Uvicorn
+# =========================================
+CMD ["uvicorn", "apps.api.app:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
