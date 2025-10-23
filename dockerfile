@@ -21,9 +21,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Upgrade pip
 RUN pip install --no-cache-dir --upgrade pip
 
-# Install Python dependencies
+
+# Install Python dependencies (pin pip below 24.1 for textract)
 COPY cv-req.txt .
-RUN pip install --no-cache-dir -r cv-req.txt
+RUN pip install --no-cache-dir "pip<24.1" && \
+    pip install --no-cache-dir -r cv-req.txt
+
 
 # Copy app code
 COPY . /app
