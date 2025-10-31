@@ -37,6 +37,8 @@ pytesseract==0.3.13         # OCR for images
 Pillow==10.4.0    
 
 lxml==5.2.2
+beautifulsoup4==4.12.3
+
 
 # Testing
 pytest==7.4.4
