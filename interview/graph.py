@@ -114,7 +114,12 @@ def build_graph(config: dict):
     g.add_conditional_edges(
         "decide_followup",
         lambda state: "ask_question" if state.get("should_follow_up") else "stage_transition",
+        {
+            "ask_question": "ask_question",
+            "stage_transition": "stage_transition",
+        }
     )
+
     def decide_next_step(state: InterviewState) -> str:
         if state.get("stage") == "wrap-up":
             return END

@@ -1,7 +1,7 @@
 # Core API
 fastapi==0.111.0
 uvicorn[standard]==0.32.1
-gunicorn
+gunicorn==21.2.0
 
 # Validation & Settings
 pydantic==2.10.4
@@ -10,35 +10,30 @@ python-dotenv==1.0.1
 
 # LLM Provider
 groq==0.9.0
-httpx==0.27.2   # keep if you want raw HTTP calls
+httpx==0.27.2
 
-# Orchestration
+# Agent / Orchestration
 langgraph==0.0.48
 langchain-core==0.1.52
 
-# Storage & Database (optional now, needed when persisting sessions)
+# Storage & Database
 redis==5.0.1
 sqlalchemy==2.0.29
-psycopg2-binary==2.9.9
 pgvector==0.2.4
 
-# Auth & Security (optional until you add JWT login)
+# Auth
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 
 # File Uploads
 python-multipart==0.0.9
 
-# Document Parsing
-
-pdfplumber==0.11.0          # PDFs
-python-docx==1.1.2          # DOCX files
-pytesseract==0.3.13         # OCR for images
+# PDF / Document Parsing
+pdfplumber==0.11.0
+python-docx==1.1.2
+pytesseract==0.3.13
 Pillow==10.4.0    
-
-lxml==5.2.2
 beautifulsoup4==4.12.3
-
 
 # Testing
 pytest==7.4.4
