@@ -37,3 +37,4 @@ beautifulsoup4==4.12.3
 
 # Testing
 pytest==7.4.4
+rq
