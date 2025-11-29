@@ -9,38 +9,38 @@ WORKDIR /app
 # =========================================
 # 🧱 Install system-level dependencies
 # =========================================
-# Install system dependencies required for textract + OCR + git
+# Required for lxml, pdf tools, tesseract, and python-docx
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git \
     build-essential \
-    swig \
-    libpulse-dev \
-    libasound2-dev \
-    libxml2 \
-    libxslt1.1 \
-    libjpeg62-turbo \
-    zlib1g \
+    gcc \
+    g++ \
+    git \
+    libxml2-dev \
+    libxslt1-dev \
+    libjpeg62-turbo-dev \
+    zlib1g-dev \
     tesseract-ocr \
     poppler-utils \
     antiword \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+# =========================================
+# 📦 Python Dependencies
+# =========================================
+COPY cv-req.txt /app/cv-req.txt
+
+# Install pip first (but avoid breaking textract-tr)
+RUN pip install --no-cache-dir --upgrade "pip<24.1" wheel setuptools
+
+RUN pip install --no-cache-dir -r /app/cv-req.txt
 
 # =========================================
-# 📦 Install Python dependencies
-# =========================================
-COPY cv-req.txt .
-# (textract-tr requires pip < 24.1)
-RUN pip install --no-cache-dir "pip<24.1" && \
-    pip install --no-cache-dir -r cv-req.txt
-
-# =========================================
-# 📁 Copy the rest of the application
+# 📁 Copy Application Code
 # =========================================
 COPY . /app
 
-# Ensure imports work across submodules
+# Make imports work properly
 ENV PYTHONPATH=/app
 
 # =========================================
@@ -49,6 +49,7 @@ ENV PYTHONPATH=/app
 EXPOSE 8000
 
 # =========================================
-# 🚀 Start FastAPI via Uvicorn
+# 🚀 Start FastAPI App
 # =========================================
-CMD ["uvicorn", "apps.api.app:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+# Note: --reload is NOT recommended in production
+CMD ["uvicorn", "apps.api.app:app", "--host", "0.0.0.0", "--port", "8000"]
