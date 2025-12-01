@@ -1,7 +1,9 @@
 from typing import Dict, Any
-from interview.graph import build_graph
 import asyncio
 import logging
+
+from interview.graph import build_graph
+from interview.evaluate.judge import summarize_scores
 
 logger = logging.getLogger(__name__)
 
@@ -13,6 +15,7 @@ class InterviewSessionManager:
     """
 
     def __init__(self):
+        # In-memory storage (can replace with Redis/DB later)
         self.sessions: Dict[str, Dict[str, Any]] = {}
         self.graphs: Dict[str, Any] = {}
 
@@ -30,9 +33,13 @@ class InterviewSessionManager:
         cv: str,
         round_type: str = "full",
     ) -> Dict[str, Any]:
+        """
+        Initialize a new interview session and its LangGraph.
+        """
 
         key = self._make_key(user_id, session_id)
 
+        # Config that nodes / prompts can use
         config = {
             "user_id": user_id,
             "session_id": session_id,
@@ -44,9 +51,11 @@ class InterviewSessionManager:
             "round_type": round_type,
         }
 
+        # Build compiled graph for this session
         graph = build_graph(config)
 
-        state = {
+        # Initial state passed into the graph
+        state: Dict[str, Any] = {
             "session_id": session_id,
             "user_id": user_id,
             "stage": "intro",
@@ -54,16 +63,26 @@ class InterviewSessionManager:
             "should_follow_up": False,
             "completed": False,
             "config": config,
+            "jd": jd,
+            "cv": cv,
         }
 
         self.sessions[key] = state
         self.graphs[key] = graph
         return state
 
-    async def step(self, user_id: str, session_id: str, user_answer: str = None) -> Dict[str, Any]:
+    async def step(
+        self,
+        user_id: str,
+        session_id: str,
+        user_answer: str | None = None,
+    ) -> Dict[str, Any]:
         """
-        Advance the graph one step.
-        Compatible with all LangGraph compiled graph invocation styles.
+        Advance the graph by one step.
+
+        IMPORTANT:
+        - Do NOT pass config= into the compiled graph.
+        - Just pass the state dict. LangGraph handles config internally.
         """
 
         key = self._make_key(user_id, session_id)
@@ -73,80 +92,68 @@ class InterviewSessionManager:
         state = self.sessions[key]
         graph = self.graphs[key]
 
-        # Attach user's answer
+        # Attach answer if provided
         if user_answer and state.get("history"):
             state["history"][-1]["answer"] = user_answer
 
-        logger.info(f"▶️ Running LangGraph step for session={session_id}, user={user_id}")
+        logger.info("▶️ Running LangGraph step for user=%s, session=%s", user_id, session_id)
 
         try:
-            # 1. Use ainvoke() if available (async graph)
+            # Async compiled graph (preferred)
             if hasattr(graph, "ainvoke") and callable(graph.ainvoke):
                 new_state = await graph.ainvoke(state)
 
-            # 2. Use invoke() if available (sync graph)
+            # Sync compiled graph
             elif hasattr(graph, "invoke") and callable(graph.invoke):
                 new_state = graph.invoke(state)
 
-            # 3. If graph itself is async callable
+            # Raw async callable
             elif asyncio.iscoroutinefunction(graph):
                 new_state = await graph(state)
 
-            # 4. If graph is sync callable
+            # Raw sync callable
             elif callable(graph):
                 new_state = graph(state)
 
             else:
-                raise RuntimeError("Unsupported graph invocation type.")
+                raise RuntimeError("Unsupported graph invocation type")
 
         except Exception:
-            logger.exception("❌ Error while invoking graph:")
+            logger.exception("❌ Error while invoking LangGraph")
             raise
 
-        # Persist new state
         self.sessions[key] = new_state
         return new_state
 
-    def get_state(self, user_id: str, session_id: str) -> Dict[str, Any]:
+    def get_state(self, user_id: str, session_id: str) -> Dict[str, Any] | None:
         return self.sessions.get(self._make_key(user_id, session_id))
 
-    def get_user_sessions(self, user_id: str):
+    def get_user_sessions(self, user_id: str) -> Dict[str, Any]:
+        prefix = f"{user_id}:"
         return {
-            sid.split(":")[1]: state
+            sid.split(":", 1)[1]: state
             for sid, state in self.sessions.items()
-            if sid.startswith(f"{user_id}:")
+            if sid.startswith(prefix)
         }
 
     def generate_report(self, user_id: str, session_id: str) -> Dict[str, Any]:
+        """
+        Aggregate all evaluations for a session and produce a summary.
+        Uses summarize_scores() from evaluate/judge.py.
+        """
         state = self.get_state(user_id, session_id)
         if not state:
             return {"error": "Session not found"}
 
         evaluations = [
-            h.get("evaluation")
+            h["evaluation"]
             for h in state.get("history", [])
             if h.get("evaluation")
         ]
-
         if not evaluations:
             return {"error": "No evaluations available"}
 
-        totals = {"technical_depth": 0, "relevance": 0, "communication": 0, "behavioral": 0}
-        for ev in evaluations:
-            for k in totals:
-                totals[k] += ev.get(k, 0)
-
-        avg_scores = {k: round(v / len(evaluations), 2) for k, v in totals.items()}
-        overall_score = sum(avg_scores.values()) / len(avg_scores)
-
-        if overall_score >= 8.5:
-            overall = "Strong Hire"
-        elif overall_score >= 7:
-            overall = "Hire"
-        elif overall_score >= 5:
-            overall = "Weak Hire"
-        else:
-            overall = "No Hire"
+        avg_scores = summarize_scores(evaluations)
 
         return {
             "session_id": session_id,
@@ -154,10 +161,10 @@ class InterviewSessionManager:
             "role": state["config"]["role_title"],
             "company": state["config"]["company_name"],
             "industry": state["config"]["industry"],
-            "avg_scores": {**avg_scores, "overall": overall},
+            "avg_scores": avg_scores,
             "history": state["history"],
         }
 
 
-# Singleton
+# Singleton instance
 interview_manager = InterviewSessionManager()
