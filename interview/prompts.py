@@ -106,8 +106,8 @@ Task:
 - If the answer is clear and strong enough → recommend "stage_transition".
 
 Return strictly in JSON only:
-{
+{{
   "decision": "followup" or "stage_transition",
   "reason": "short explanation (max 15 words)"
-}
+}}
 """
