@@ -1,18 +1,25 @@
 import httpx
 import os
 import logging
+
 from .stages import (
-    intro_stage, hr_stage, technical_stage,
-    behavioral_stage, managerial_stage, wrapup_stage,
+    intro_stage,
+    hr_stage,
+    technical_stage,
+    behavioral_stage,
+    managerial_stage,
+    wrapup_stage,
 )
 from .prompts import BASE_QUESTION_PROMPT, FOLLOWUP_INSTRUCTIONS
+
+logger = logging.getLogger(__name__)
 
 # Config
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 GROQ_MODEL = os.getenv("LLM_MODEL", "llama-3.1-8b-instant")
 
-# Stage map → functions for instructions
+# Stage-to-function map
 STAGE_MAP = {
     "intro": intro_stage,
     "hr": hr_stage,
@@ -23,19 +30,36 @@ STAGE_MAP = {
 }
 
 
+def _short_history(history):
+    """Reduce history to last 2 turns for prompt."""
+    if not history:
+        return "None"
+
+    short = history[-2:]
+    simple = [
+        {"q": h.get("question"), "a": h.get("answer") or ""}
+        for h in short
+    ]
+    return simple
+
+
 async def generate_question(state, stage: str, followup: bool = False) -> str:
     """
-    Generate a professional interview question for the given stage using Groq API.
+    Generate a question for the interview stage.
+    Returns a clean, concise question string.
     """
 
-    # 1. Get stage-specific instruction
-    stage_info = STAGE_MAP.get(stage, lambda s: {"instruction": "Ask a relevant interview question."})(state)
-    stage_instruction = stage_info["instruction"]
+    # 1. Stage instructions
+    stage_fn = STAGE_MAP.get(stage)
+    if not stage_fn:
+        stage_instruction = "Ask a relevant and concise interview question."
+    else:
+        stage_instruction = stage_fn(state)["instruction"]
 
-    # 2. Prepare history context (last 2-3 exchanges only)
-    history_context = state["history"][-3:] if state.get("history") else "None"
+    # 2. Short history
+    history_context = _short_history(state.get("history"))
 
-    # 3. Build prompt
+    # 3. Build formatted prompt
     prompt = BASE_QUESTION_PROMPT.format(
         role=state["config"]["role_title"],
         company=state["config"]["company_name"],
@@ -46,8 +70,8 @@ async def generate_question(state, stage: str, followup: bool = False) -> str:
         jd=state["jd"],
         cv=state["cv"],
         history=history_context,
-        followup_instructions=FOLLOWUP_INSTRUCTIONS if followup else ""
-    )
+        followup_instructions=FOLLOWUP_INSTRUCTIONS if followup else "",
+    ).strip()
 
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
@@ -56,27 +80,36 @@ async def generate_question(state, stage: str, followup: bool = False) -> str:
 
     payload = {
         "model": GROQ_MODEL,
-        "messages": [{"role": "user", "content": prompt.strip()}],
-        "temperature": 0.6,  # keep it professional, less creative
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.4,
         "max_tokens": 200,
     }
 
     # 4. Call Groq API
     try:
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with httpx.AsyncClient(timeout=25) as client:
             resp = await client.post(GROQ_API_URL, headers=headers, json=payload)
             data = resp.json()
 
-            logging.info("Groq response (question): %s", data)
+        logger.info("Groq question response: %s", data)
 
-            if "choices" not in data:
-                error_msg = data.get("error", {}).get("message", "Unknown error from Groq")
-                logging.error("Groq API error: %s", error_msg)
-                return f"(Error generating question: {error_msg})"
+        # API error
+        if "error" in data:
+            msg = data["error"].get("message", "Unknown Groq error")
+            return f"(Groq error: {msg})"
 
-            question = data["choices"][0]["message"]["content"].strip()
-            return question
+        # No choices → bad response
+        if "choices" not in data or not data["choices"]:
+            return "(Error: Groq returned no question.)"
+
+        content = data["choices"][0]["message"]["content"].strip()
+
+        # Clean any extra content — keep only first question-like sentence
+        clean = content.split("\n")[0].strip()
+        clean = clean.replace("Sure,", "").replace("Here's a question:", "").strip()
+
+        return clean
 
     except Exception as e:
-        logging.exception("Exception in generate_question")
+        logger.exception("Exception in generate_question()")
         return f"(Error generating question: {str(e)})"

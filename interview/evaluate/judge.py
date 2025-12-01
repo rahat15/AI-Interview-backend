@@ -1,118 +1,149 @@
-import httpx
+"""
+interview/evaluate/judge.py
+Evaluates a candidate's answer using Groq.
+Returns clean, consistent JSON required by LangGraph.
+"""
+
 import os
+import httpx
 import json
 import logging
-from ..prompts import BASE_EVALUATION_PROMPT
+from interview.prompts import BASE_EVALUATION_PROMPT
 
-# Config
+logger = logging.getLogger(__name__)
+
+# Groq config
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 GROQ_MODEL = os.getenv("LLM_MODEL", "llama-3.1-8b-instant")
 
 
-async def evaluate_answer(stage: str, question: str, user_answer: str, jd: str, cv: str) -> dict:
+# ---------------------------------------------------------
+# Safe JSON extraction
+# ---------------------------------------------------------
+def safe_json(text: str):
+    """Extract valid JSON, even if wrapped in other text."""
+    try:
+        return json.loads(text)
+    except Exception:
+        try:
+            start = text.index("{")
+            end = text.rindex("}") + 1
+            return json.loads(text[start:end])
+        except Exception:
+            return {"error": "Malformed JSON", "raw": text}
+
+
+# ---------------------------------------------------------
+# MAIN FUNCTION — this is what LangGraph calls
+# ---------------------------------------------------------
+async def evaluate_answer(user_answer: str, jd: str, cv: str, stage: str = "general") -> dict:
     """
-    Evaluate a candidate's answer using Groq API.
-    Returns JSON with clarity, confidence, technical_depth, and summary.
+    Evaluate a candidate's answer using LLM.
+    ALWAYS returns JSON with required keys:
+      clarity, confidence, technical_depth, summary
     """
 
-    # Build prompt from central template
+    if not user_answer:
+        return {
+            "clarity": 0,
+            "confidence": 0,
+            "technical_depth": 0,
+            "summary": "No answer provided."
+        }
+
     prompt = BASE_EVALUATION_PROMPT.format(
         stage=stage,
-        question=question,
-        answer=user_answer
-    )
+        question="(handled in graph)",
+        answer=user_answer,
+    ).strip()
+
+    payload = {
+        "model": GROQ_MODEL,
+        "messages": [
+            {"role": "system", "content": "You must output ONLY valid JSON."},
+            {"role": "user", "content": prompt},
+        ],
+        "temperature": 0,
+        "max_tokens": 200,
+    }
 
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json",
     }
 
-    payload = {
-        "model": GROQ_MODEL,
-        "messages": [{"role": "user", "content": prompt.strip()}],
-        "temperature": 0.2,  # keep eval consistent
-        "max_tokens": 250,
-    }
-
+    # -----------------------------------------------------
+    # Groq API CALL
+    # -----------------------------------------------------
     try:
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with httpx.AsyncClient(timeout=25) as client:
             resp = await client.post(GROQ_API_URL, headers=headers, json=payload)
-            data = resp.json()
 
-            logging.info("Groq eval response: %s", data)
+        data = resp.json()
+        logger.info("Groq eval response: %s", data)
 
-            if "choices" not in data:
-                error_msg = data.get("error", {}).get("message", "Unknown error from Groq")
-                return _fallback_eval(stage, user_answer, f"Groq error: {error_msg}")
+        if "error" in data:
+            return _fallback(user_answer, f"Groq error: {data['error']}")
 
-            raw_eval = data["choices"][0]["message"]["content"].strip()
+        content = data["choices"][0]["message"]["content"]
+        result = safe_json(content)
 
-            try:
-                evaluation = json.loads(raw_eval)
-                # Force technical_depth=0 for non-technical stages
-                if stage in ["intro", "hr", "behavioral", "managerial", "wrap-up"]:
-                    evaluation["technical_depth"] = 0
-                return evaluation
-            except Exception as e:
-                logging.warning("Failed to parse JSON eval. Raw: %s", raw_eval)
-                return _fallback_eval(stage, user_answer, f"Parse error: {e}")
+        # Ensure technical depth is zero for non-technical stages
+        if stage in ["intro", "hr", "behavioral", "managerial", "wrap-up"]:
+            result["technical_depth"] = 0
 
-    except Exception as e:
-        logging.exception("Exception in evaluate_answer")
-        return _fallback_eval(stage, user_answer, str(e))
-
-
-def _fallback_eval(stage: str, answer: str, error: str) -> dict:
-    """
-    Fallback evaluation if Groq fails or JSON parsing breaks.
-    """
-    return {
-        "technical_depth": 0 if stage in ["intro", "hr", "behavioral", "managerial", "wrap-up"] else 5,
-        "clarity": 5,
-        "confidence": 5,
-        "summary": f"(Fallback eval due to {error}). Candidate answer snippet: {answer[:100]}..."
-    }
-
-
-def summarize_scores(evaluations: list[dict]) -> dict:
-    """
-    Aggregate all evaluations into a final report with banding.
-    """
-    if not evaluations:
+        # Fill missing fields safely
         return {
-            "technical_depth": 0,
-            "clarity": 0,
-            "confidence": 0,
-            "overall": "No Data"
+            "clarity": int(result.get("clarity", 5)),
+            "confidence": int(result.get("confidence", 5)),
+            "technical_depth": int(result.get("technical_depth", 0)),
+            "summary": result.get("summary", "(No summary provided)"),
         }
 
-    totals = {"technical_depth": 0, "clarity": 0, "confidence": 0}
-    count = len(evaluations)
+    except Exception as e:
+        logger.exception("Evaluation failed:")
+        return _fallback(user_answer, str(e))
 
-    # Sum up all scores
-    for ev in evaluations:
-        totals["technical_depth"] += ev.get("technical_depth", 0)
-        totals["clarity"] += ev.get("clarity", 0)
-        totals["confidence"] += ev.get("confidence", 0)
 
-    # Compute averages
-    averages = {k: round(v / count, 2) for k, v in totals.items()}
-
-    # Compute overall average
-    overall_score = sum(averages.values()) / len(averages)
-
-    # Assign band
-    if overall_score >= 8.5:
-        overall = "Strong Fit"
-    elif overall_score >= 7:
-        overall = "Average Fit"
-    elif overall_score >= 5:
-        overall = "Weak Fit"
-    else:
-        overall = "No Hire"
-
+# ---------------------------------------------------------
+# FALLBACK — NEVER let the pipeline break
+# ---------------------------------------------------------
+def _fallback(answer: str, reason: str):
+    """Fallback evaluation if LLM fails."""
     return {
-        **averages,
-        "overall": overall
+        "clarity": 5,
+        "confidence": 5,
+        "technical_depth": 0,
+        "summary": f"(Fallback due to: {reason}) Answer: {answer[:80]}...",
     }
+
+
+# ---------------------------------------------------------
+# Summary aggregator (used for final reports)
+# ---------------------------------------------------------
+def summarize_scores(evaluations: list[dict]) -> dict:
+    if not evaluations:
+        return {
+            "clarity": 0,
+            "confidence": 0,
+            "technical_depth": 0,
+            "overall": "No Data",
+        }
+
+    avg = {
+        "clarity": sum(ev.get("clarity", 0) for ev in evaluations) / len(evaluations),
+        "confidence": sum(ev.get("confidence", 0) for ev in evaluations) / len(evaluations),
+        "technical_depth": sum(ev.get("technical_depth", 0) for ev in evaluations) / len(evaluations),
+    }
+
+    overall = sum(avg.values()) / len(avg)
+
+    band = (
+        "Strong Fit" if overall >= 8.5
+        else "Average Fit" if overall >= 7
+        else "Weak Fit" if overall >= 5
+        else "No Hire"
+    )
+
+    return {**{k: round(v, 2) for k in avg}, "overall": band}
