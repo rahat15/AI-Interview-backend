@@ -3,25 +3,26 @@ import asyncio
 import logging
 
 from interview.graph import build_graph
-from interview.evaluate.judge import summarize_scores
 
 logger = logging.getLogger(__name__)
 
 
 class InterviewSessionManager:
     """
-    Orchestrates interview sessions using LangGraph.
-    Keeps state per user_id + session_id.
+    Manages interview sessions using LangGraph.
+    Each session has a state + compiled graph instance.
     """
 
     def __init__(self):
-        # In-memory storage (can replace with Redis/DB later)
         self.sessions: Dict[str, Dict[str, Any]] = {}
         self.graphs: Dict[str, Any] = {}
 
     def _make_key(self, user_id: str, session_id: str) -> str:
         return f"{user_id}:{session_id}"
 
+    # ----------------------------------------------------------------------
+    # CREATE SESSION
+    # ----------------------------------------------------------------------
     def create_session(
         self,
         user_id: str,
@@ -33,13 +34,9 @@ class InterviewSessionManager:
         cv: str,
         round_type: str = "full",
     ) -> Dict[str, Any]:
-        """
-        Initialize a new interview session and its LangGraph.
-        """
 
         key = self._make_key(user_id, session_id)
 
-        # Config that nodes / prompts can use
         config = {
             "user_id": user_id,
             "session_id": session_id,
@@ -51,11 +48,9 @@ class InterviewSessionManager:
             "round_type": round_type,
         }
 
-        # Build compiled graph for this session
         graph = build_graph(config)
 
-        # Initial state passed into the graph
-        state: Dict[str, Any] = {
+        state = {
             "session_id": session_id,
             "user_id": user_id,
             "stage": "intro",
@@ -63,26 +58,19 @@ class InterviewSessionManager:
             "should_follow_up": False,
             "completed": False,
             "config": config,
-            "jd": jd,
-            "cv": cv,
         }
 
         self.sessions[key] = state
         self.graphs[key] = graph
         return state
 
-    async def step(
-        self,
-        user_id: str,
-        session_id: str,
-        user_answer: str | None = None,
-    ) -> Dict[str, Any]:
+    # ----------------------------------------------------------------------
+    # MAIN STEP CALL
+    # ----------------------------------------------------------------------
+    async def step(self, user_id: str, session_id: str, user_answer: str = None) -> Dict[str, Any]:
         """
-        Advance the graph by one step.
-
-        IMPORTANT:
-        - Do NOT pass config= into the compiled graph.
-        - Just pass the state dict. LangGraph handles config internally.
+        Advance LangGraph one step.
+        Always passes input as {"state": state} to avoid config duplication bugs.
         """
 
         key = self._make_key(user_id, session_id)
@@ -92,68 +80,94 @@ class InterviewSessionManager:
         state = self.sessions[key]
         graph = self.graphs[key]
 
-        # Attach answer if provided
+        # Attach user answer
         if user_answer and state.get("history"):
             state["history"][-1]["answer"] = user_answer
 
-        logger.info("▶️ Running LangGraph step for user=%s, session=%s", user_id, session_id)
+        logger.info("▶ Running graph step for session=%s user=%s", session_id, user_id)
+
+        # --- THE FIX: ALWAYS WRAP THE INPUT ---
+        graph_input = {"state": state}
 
         try:
-            # Async compiled graph (preferred)
+            # Async version preferred
             if hasattr(graph, "ainvoke") and callable(graph.ainvoke):
-                new_state = await graph.ainvoke(state)
+                logger.debug("Using graph.ainvoke()")
+                new_state = await graph.ainvoke(graph_input)
 
-            # Sync compiled graph
+            # Sync version
             elif hasattr(graph, "invoke") and callable(graph.invoke):
-                new_state = graph.invoke(state)
+                logger.debug("Using graph.invoke()")
+                new_state = graph.invoke(graph_input)
 
-            # Raw async callable
+            # If graph itself is async callable
             elif asyncio.iscoroutinefunction(graph):
-                new_state = await graph(state)
+                logger.debug("Using async graph(state)")
+                new_state = await graph(graph_input)
 
-            # Raw sync callable
+            # Sync callable
             elif callable(graph):
-                new_state = graph(state)
+                logger.debug("Using sync graph(state)")
+                new_state = graph(graph_input)
 
             else:
-                raise RuntimeError("Unsupported graph invocation type")
+                raise RuntimeError("Unsupported graph invocation type.")
 
         except Exception:
-            logger.exception("❌ Error while invoking LangGraph")
+            logger.exception("❌ Error invoking LangGraph")
             raise
 
+        # Persist
         self.sessions[key] = new_state
         return new_state
 
-    def get_state(self, user_id: str, session_id: str) -> Dict[str, Any] | None:
+    # ----------------------------------------------------------------------
+    # STATE METHODS
+    # ----------------------------------------------------------------------
+    def get_state(self, user_id: str, session_id: str) -> Dict[str, Any]:
         return self.sessions.get(self._make_key(user_id, session_id))
 
-    def get_user_sessions(self, user_id: str) -> Dict[str, Any]:
-        prefix = f"{user_id}:"
+    def get_user_sessions(self, user_id: str):
         return {
-            sid.split(":", 1)[1]: state
+            sid.split(":")[1]: state
             for sid, state in self.sessions.items()
-            if sid.startswith(prefix)
+            if sid.startswith(f"{user_id}:")
         }
 
+    # ----------------------------------------------------------------------
+    # REPORT GENERATION
+    # ----------------------------------------------------------------------
     def generate_report(self, user_id: str, session_id: str) -> Dict[str, Any]:
-        """
-        Aggregate all evaluations for a session and produce a summary.
-        Uses summarize_scores() from evaluate/judge.py.
-        """
         state = self.get_state(user_id, session_id)
         if not state:
             return {"error": "Session not found"}
 
         evaluations = [
-            h["evaluation"]
+            h.get("evaluation")
             for h in state.get("history", [])
             if h.get("evaluation")
         ]
+
         if not evaluations:
             return {"error": "No evaluations available"}
 
-        avg_scores = summarize_scores(evaluations)
+        totals = {"technical_depth": 0, "relevance": 0, "communication": 0, "behavioral": 0}
+
+        for ev in evaluations:
+            for k in totals:
+                totals[k] += ev.get(k, 0)
+
+        avg_scores = {k: round(v / len(evaluations), 2) for k, v in totals.items()}
+        overall_score = sum(avg_scores.values()) / len(avg_scores)
+
+        if overall_score >= 8.5:
+            overall = "Strong Hire"
+        elif overall_score >= 7:
+            overall = "Hire"
+        elif overall_score >= 5:
+            overall = "Weak Hire"
+        else:
+            overall = "No Hire"
 
         return {
             "session_id": session_id,
@@ -161,10 +175,10 @@ class InterviewSessionManager:
             "role": state["config"]["role_title"],
             "company": state["config"]["company_name"],
             "industry": state["config"]["industry"],
-            "avg_scores": avg_scores,
+            "avg_scores": {**avg_scores, "overall": overall},
             "history": state["history"],
         }
 
 
-# Singleton instance
+# Singleton
 interview_manager = InterviewSessionManager()
