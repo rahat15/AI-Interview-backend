@@ -1,5 +1,6 @@
 from langgraph.graph import StateGraph, END
 from typing import TypedDict, List, Literal
+import asyncio
 
 # Assume these are your imported async functions
 from interview.question import generate_question
@@ -29,25 +30,23 @@ if not all([callable(generate_question), callable(evaluate_answer), callable(fol
 
 # --- State Definition ---
 class InterviewHistoryItem(TypedDict):
-    # ... (rest of the class is the same)
     question: str
     answer: str | None
     evaluation: dict | None
     stage: str
 
 class InterviewState(TypedDict):
-    # ... (rest of the class is the same)
     stage: Literal["intro", "technical", "behavioral", "hr", "managerial", "wrap-up"]
     jd: str
     cv: str
+    config: dict
     history: List[InterviewHistoryItem]
     should_follow_up: bool
 
 # ---- Flow Nodes ----
-# (The node functions like ask_question, evaluate_answer_node, etc., are the same as the previous version)
 
 async def ask_question(state: InterviewState) -> InterviewState:
-    # ... (no changes here)
+    """Generate and append a question to history."""
     stage = state.get("stage", "intro")
     followup = state.get("should_follow_up", False)
     q = await generate_question(state, stage, followup)
@@ -58,7 +57,7 @@ async def ask_question(state: InterviewState) -> InterviewState:
     return state
 
 async def evaluate_answer_node(state: InterviewState) -> InterviewState:
-    # ... (no changes here)
+    """Evaluate the user's answer."""
     if not state.get("history") or not state["history"][-1].get("answer"):
         return state
     last_entry = state["history"][-1]
@@ -71,20 +70,25 @@ async def evaluate_answer_node(state: InterviewState) -> InterviewState:
     state["history"][-1] = last_entry
     return state
 
-def decide_followup_node(state: InterviewState) -> InterviewState:
-    # ... (no changes here)
+async def decide_followup_node(state: InterviewState) -> InterviewState:
+    """
+    FIXED: Now async to await followup_decision, and passes full state instead of just eval_result.
+    """
     state["should_follow_up"] = False
     if not state.get("history"):
         return state
-    last_entry = state["history"][-1]
-    eval_result = last_entry.get("evaluation")
-    if eval_result:
-        decision = followup_decision(eval_result)
-        state["should_follow_up"] = bool(decision)
+    
+    # Call async followup_decision with full state
+    decision_result = await followup_decision(state)
+    
+    # Extract decision from result (result is {"decision": "followup" | "stage_transition", "reason": str})
+    if decision_result.get("decision") == "followup":
+        state["should_follow_up"] = True
+    
     return state
 
 def stage_transition_node(state: InterviewState) -> InterviewState:
-    # ... (no changes here)
+    """Advance to next stage unless follow-up is requested."""
     if state.get("should_follow_up"):
         return state
     stages = ["intro", "technical", "behavioral", "hr", "managerial", "wrap-up"]
@@ -102,7 +106,7 @@ def stage_transition_node(state: InterviewState) -> InterviewState:
 
 # ---- Graph Build ----
 def build_graph(config: dict):
-    # ... (no changes here)
+    """Build and compile the interview state machine."""
     g = StateGraph(InterviewState)
     g.add_node("ask_question", ask_question)
     g.add_node("evaluate_answer", evaluate_answer_node)
@@ -125,9 +129,13 @@ def build_graph(config: dict):
             return END
         else:
             return "ask_question"
+    
     g.add_conditional_edges(
         "stage_transition",
         decide_next_step,
         { "ask_question": "ask_question", END: END }
     )
-    return g.compile()
+    
+    compiled = g.compile()
+    print(f"✅ Graph compiled successfully: {compiled}")
+    return compiled

@@ -45,9 +45,9 @@ def create_app() -> FastAPI:
         return {"status": "ok"}
 
     # Routers
-    app.include_router(cv_router, prefix="/v1", tags=["CV"])
-    app.include_router(upload_router, prefix="/v1", tags=["Upload"])
-    app.include_router(interview_router, prefix="/v1", tags=["Interview"])
+    app.include_router(cv_router, tags=["CV"])
+    app.include_router(upload_router, tags=["Upload"])
+    app.include_router(interview_router, tags=["Interview"])
 
     return app
 
