@@ -60,6 +60,7 @@ async def generate_question(state, stage: str, followup: bool = False) -> str:
     history_context = _short_history(state.get("history"))
 
     # 3. Build formatted prompt
+    # --- FIX: Read from session_config instead of top-level state ---
     prompt = BASE_QUESTION_PROMPT.format(
         role=state["session_config"]["role_title"],
         company=state["session_config"]["company_name"],
@@ -67,8 +68,8 @@ async def generate_question(state, stage: str, followup: bool = False) -> str:
         stage=stage,
         stage_instruction=stage_instruction,
         experience=state["session_config"].get("experience", ""),
-        jd=state["jd"],
-        cv=state["cv"],
+        jd=state["session_config"].get("jd", ""),   # <--- FIXED
+        cv=state["session_config"].get("cv", ""),   # <--- FIXED
         history=history_context,
         followup_instructions=FOLLOWUP_INSTRUCTIONS if followup else "",
     ).strip()

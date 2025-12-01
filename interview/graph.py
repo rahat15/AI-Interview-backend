@@ -18,8 +18,8 @@ class InterviewHistoryItem(TypedDict):
 
 class InterviewState(TypedDict):
     stage: Literal["intro", "technical", "behavioral", "hr", "managerial", "wrap-up"]
-    jd: str
-    cv: str
+    #jd: str
+    #cv: str
     session_config: dict  # RENAMED from 'config' to fix ChannelWrite error
     history: List[InterviewHistoryItem]
     should_follow_up: bool
@@ -34,6 +34,7 @@ async def ask_question(state: InterviewState, **kwargs) -> InterviewState:
     stage = state["stage"]
     followup = state.get("should_follow_up", False)
 
+    # generate_question now handles fetching JD/CV from session_config internally
     q = await generate_question(state, stage, followup)
 
     state["history"].append({
@@ -57,19 +58,19 @@ async def evaluate_answer_node(state: InterviewState, **kwargs) -> InterviewStat
 
     last = state["history"][-1]
     
-    # If no answer provided yet, skip (shouldn't happen in turn-based flow)
+    # If no answer provided yet, skip
     if not last.get("answer"):
         return state
 
+    # --- FIX: Read from session_config instead of top-level state ---
     evaluation = await evaluate_answer(
         user_answer=last["answer"],
-        jd=state["jd"],
-        cv=state["cv"]
+        jd=state["session_config"].get("jd", ""),
+        cv=state["session_config"].get("cv", "")
     )
 
     last["evaluation"] = evaluation
     return state
-
 
 async def decide_followup_node(state: InterviewState, **kwargs) -> InterviewState:
     """Decide whether to follow up or move to the next stage."""
