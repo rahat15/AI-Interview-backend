@@ -1,6 +1,10 @@
 from typing import Dict, Any
 from interview.graph import build_graph
+import inspect
 import asyncio
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class InterviewSessionManager:
@@ -62,11 +66,15 @@ class InterviewSessionManager:
         self.sessions[key] = state
         self.graphs[key] = graph
         return state
+    
+
 
     async def step(self, user_id: str, session_id: str, user_answer: str = None) -> Dict[str, Any]:
         """
         Advance the graph by one step.
         If `user_answer` is provided, attach it before stepping.
+        Robustly introspects and calls compiled LangGraph objects (handles different
+        signatures across langgraph versions).
         """
         key = self._make_key(user_id, session_id)
         if key not in self.sessions:
@@ -79,11 +87,81 @@ class InterviewSessionManager:
         if user_answer and state.get("history"):
             state["history"][-1]["answer"] = user_answer
 
-        # Run one step in the graph
-        if asyncio.iscoroutinefunction(graph):
-            new_state = await graph(state)
-        else:
-            new_state = graph.invoke(state)
+        # Diagnostics: inspect graph object before calling it
+        try:
+            logger.info("Invoking graph for session %s (user=%s)", session_id, user_id)
+            logger.debug("Graph repr: %r", graph)
+            logger.debug("Graph type: %s", type(graph))
+
+            # Prepare possible targets to call: graph (callable), graph.__call__, graph.invoke
+            candidate = None
+            is_async = False
+            call_name = None
+
+            # prefer direct callable (object __call__)
+            if callable(graph):
+                # if graph is a function or callable object
+                # inspect its __call__ if it's an object instance
+                target = graph
+                # If object has __call__ attribute defined on its class, inspect that
+                if hasattr(graph, "__call__") and not inspect.isfunction(graph):
+                    target = graph.__call__
+                sig = None
+                try:
+                    sig = inspect.signature(target)
+                except Exception as e:
+                    logger.debug("Could not get signature for target %s: %s", target, e)
+
+                params = list(sig.parameters.keys()) if sig else []
+                logger.debug("Signature for callable target: %s", params)
+
+                # determine which kwargs to send
+                kwargs = {}
+                if "config" in params:
+                    kwargs["config"] = state.get("config", {})
+                # call it (handle coroutine)
+                if inspect.iscoroutinefunction(target) or inspect.iscoroutinefunction(graph):
+                    is_async = True
+                    call_name = "callable_async"
+                    candidate = (target, kwargs)
+                else:
+                    call_name = "callable_sync"
+                    candidate = (target, kwargs)
+
+            # fallback: check for .invoke method
+            if candidate is None and hasattr(graph, "invoke"):
+                invoke = getattr(graph, "invoke")
+                try:
+                    sig2 = inspect.signature(invoke)
+                    params2 = list(sig2.parameters.keys())
+                except Exception:
+                    params2 = []
+                logger.debug("Signature for invoke: %s", params2)
+                kwargs = {}
+                if "config" in params2:
+                    kwargs["config"] = state.get("config", {})
+                if inspect.iscoroutinefunction(invoke):
+                    is_async = True
+                    call_name = "invoke_async"
+                else:
+                    call_name = "invoke_sync"
+                candidate = (invoke, kwargs)
+
+            if candidate is None:
+                raise RuntimeError("No callable target found on compiled graph (unexpected).")
+
+            target_func, kwargs = candidate
+            logger.info("Calling graph using %s (async=%s) with kwargs=%s", call_name, is_async, list(kwargs.keys()))
+
+            if is_async:
+                # await the coroutine
+                new_state = await target_func(state, **kwargs)
+            else:
+                new_state = target_func(state, **kwargs)
+
+        except Exception as e:
+            logger.exception("Error while invoking graph:")
+            raise
 
         # Save updated state
         self.sessions[key] = new_state
