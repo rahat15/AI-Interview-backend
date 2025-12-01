@@ -146,4 +146,7 @@ def summarize_scores(evaluations: list[dict]) -> dict:
         else "No Hire"
     )
 
-    return {**{k: round(v, 2) for k in avg}, "overall": band}
+    # FIXED: cleaner version
+    rounded = {k: round(v, 2) for k, v in avg.items()}
+    rounded["overall"] = band
+    return rounded

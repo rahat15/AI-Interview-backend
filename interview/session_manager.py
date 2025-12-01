@@ -57,7 +57,7 @@ class InterviewSessionManager:
             "history": [],
             "should_follow_up": False,
             "completed": False,
-            "config": config,
+            "session_config": config,
         }
 
         self.sessions[key] = state
@@ -87,7 +87,7 @@ class InterviewSessionManager:
         logger.info("▶ Running graph step for session=%s user=%s", session_id, user_id)
 
         # --- THE FIX: ALWAYS WRAP THE INPUT ---
-        graph_input = {"state": state}
+        graph_input = state
 
         try:
             # Async version preferred
@@ -172,9 +172,9 @@ class InterviewSessionManager:
         return {
             "session_id": session_id,
             "user_id": user_id,
-            "role": state["config"]["role_title"],
-            "company": state["config"]["company_name"],
-            "industry": state["config"]["industry"],
+            "role": state["session_config"]["role_title"],
+            "company": state["session_config"]["company_name"],
+            "industry": state["session_config"]["industry"],
             "avg_scores": {**avg_scores, "overall": overall},
             "history": state["history"],
         }

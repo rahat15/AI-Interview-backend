@@ -61,12 +61,12 @@ async def generate_question(state, stage: str, followup: bool = False) -> str:
 
     # 3. Build formatted prompt
     prompt = BASE_QUESTION_PROMPT.format(
-        role=state["config"]["role_title"],
-        company=state["config"]["company_name"],
-        industry=state["config"]["industry"],
+        role=state["session_config"]["role_title"],
+        company=state["session_config"]["company_name"],
+        industry=state["session_config"]["industry"],
         stage=stage,
         stage_instruction=stage_instruction,
-        experience=state["config"].get("experience", ""),
+        experience=state["session_config"].get("experience", ""),
         jd=state["jd"],
         cv=state["cv"],
         history=history_context,

@@ -15,12 +15,11 @@ class InterviewHistoryItem(TypedDict):
     evaluation: dict | None
     stage: str
 
-
 class InterviewState(TypedDict):
     stage: Literal["intro", "technical", "behavioral", "hr", "managerial", "wrap-up"]
     jd: str
     cv: str
-    config: dict
+    session_config: dict  # <--- RENAME THIS (was config)
     history: List[InterviewHistoryItem]
     should_follow_up: bool
 
