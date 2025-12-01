@@ -1,5 +1,5 @@
 from langgraph.graph import StateGraph, END
-from typing import TypedDict, List, Literal
+from typing import TypedDict, List, Literal, Any
 import asyncio
 
 # Assume these are your imported async functions
@@ -44,8 +44,9 @@ class InterviewState(TypedDict):
     should_follow_up: bool
 
 # ---- Flow Nodes ----
+# FIXED: All node functions now accept **kwargs to handle LangGraph 0.6+ passing 'config' parameter
 
-async def ask_question(state: InterviewState) -> InterviewState:
+async def ask_question(state: InterviewState, **kwargs) -> InterviewState:
     """Generate and append a question to history."""
     stage = state.get("stage", "intro")
     followup = state.get("should_follow_up", False)
@@ -56,7 +57,7 @@ async def ask_question(state: InterviewState) -> InterviewState:
     state["should_follow_up"] = False
     return state
 
-async def evaluate_answer_node(state: InterviewState) -> InterviewState:
+async def evaluate_answer_node(state: InterviewState, **kwargs) -> InterviewState:
     """Evaluate the user's answer."""
     if not state.get("history") or not state["history"][-1].get("answer"):
         return state
@@ -70,9 +71,10 @@ async def evaluate_answer_node(state: InterviewState) -> InterviewState:
     state["history"][-1] = last_entry
     return state
 
-async def decide_followup_node(state: InterviewState) -> InterviewState:
+async def decide_followup_node(state: InterviewState, **kwargs) -> InterviewState:
     """
-    FIXED: Now async to await followup_decision, and passes full state instead of just eval_result.
+    Decide whether to ask a follow-up or move to next stage.
+    Now async to await followup_decision, and passes full state.
     """
     state["should_follow_up"] = False
     if not state.get("history"):
@@ -87,7 +89,7 @@ async def decide_followup_node(state: InterviewState) -> InterviewState:
     
     return state
 
-def stage_transition_node(state: InterviewState) -> InterviewState:
+def stage_transition_node(state: InterviewState, **kwargs) -> InterviewState:
     """Advance to next stage unless follow-up is requested."""
     if state.get("should_follow_up"):
         return state
@@ -105,7 +107,7 @@ def stage_transition_node(state: InterviewState) -> InterviewState:
     return state
 
 # ---- Graph Build ----
-def build_graph(config: dict):
+def build_graph(config: dict) -> Any:
     """Build and compile the interview state machine."""
     g = StateGraph(InterviewState)
     g.add_node("ask_question", ask_question)
@@ -137,5 +139,5 @@ def build_graph(config: dict):
     )
     
     compiled = g.compile()
-    print(f"✅ Graph compiled successfully: {compiled}")
+    print(f"✅ Graph compiled successfully: {type(compiled)}")
     return compiled
