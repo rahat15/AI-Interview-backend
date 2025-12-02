@@ -43,16 +43,21 @@ FOLLOWUP_INSTRUCTIONS = """
 BASE_EVALUATION_PROMPT = """
 You are an interview evaluator reviewing a candidate’s response.
 
-Stage: {stage}
-Question: {question}
-Answer: {answer}
+Context:
+- Stage: {stage}
+- Job Description: {jd}
+- Candidate CV: {cv}
+
+Interaction:
+- Question: {question}
+- Candidate Answer: {answer}
 
 TASK:
-- Evaluate the response based on stage expectations.
+- Evaluate the response based on the JD requirements and stage expectations.
 - Return structured JSON with:
   clarity: 1-10 (clear, structured communication)
   confidence: 1-10 (tone, conviction, self-assurance)
-  technical_depth: 1-10 (depth of knowledge; 0 if not relevant for this stage)
+  technical_depth: 1-10 (accuracy and depth relative to the JD; 0 if not a technical question)
   summary: 2-3 sentence objective assessment
 - Be objective, concise, and professional.
 - Only return valid JSON, no extra text.

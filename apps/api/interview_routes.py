@@ -99,6 +99,7 @@ async def submit_answer(req: AnswerRequest):
     Evaluates response, decides follow-up/transition, and returns next question.
     """
     try:
+        # 1. Run the graph
         result = await interview_manager.step(
             req.user_id,
             req.session_id,
@@ -106,13 +107,22 @@ async def submit_answer(req: AnswerRequest):
         )
 
         history = result.get("history", [])
-        last = history[-1] if history else {}
+        
+        # 2. Get the Next Question (The last thing added)
+        # If the graph ended (completed), there might be no next question.
+        last_item = history[-1] if history else {}
+        next_question = last_item.get("question") if not result.get("completed") else None
 
-        # If graph has ended, next_question is None
-        next_question = None if result.get("stage") == "wrap-up" and not result.get("should_follow_up") else last.get("question")
+        # 3. Get the Evaluation (The thing we just answered)
+        # If we have at least 2 items (Old Q + New Q), the evaluation is in the second to last [-2].
+        # If the interview is done (completed), the evaluation is in the last item [-1].
+        if result.get("completed"):
+            evaluated_item = last_item
+        else:
+            evaluated_item = history[-2] if len(history) >= 2 else {}
 
         return {
-            "evaluation": last.get("evaluation"),
+            "evaluation": evaluated_item.get("evaluation"), # Returns the score for the answer just given
             "next_question": next_question,
             "state": result,
         }

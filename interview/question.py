@@ -30,18 +30,26 @@ STAGE_MAP = {
 }
 
 
+# interview/question.py
+
 def _short_history(history):
-    """Reduce history to last 2 turns for prompt."""
+    """
+    Reduce history to the last 3 turns and format as text.
+    """
     if not history:
         return "None"
 
-    short = history[-2:]
-    simple = [
-        {"q": h.get("question"), "a": h.get("answer") or ""}
-        for h in short
-    ]
-    return simple
-
+    # 1. Limit to last 3 exchanges
+    short = history[-3:] 
+    
+    # 2. Format as a clean string block instead of a raw list
+    formatted = []
+    for h in short:
+        q_text = h.get("question", "")
+        a_text = h.get("answer") or "(No answer)"
+        formatted.append(f"Interviewer: {q_text}\nCandidate: {a_text}")
+    
+    return "\n\n".join(formatted)
 
 async def generate_question(state, stage: str, followup: bool = False) -> str:
     """
