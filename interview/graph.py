@@ -52,24 +52,34 @@ async def ask_question(state: InterviewState, **kwargs) -> InterviewState:
 
 async def evaluate_answer_node(state: InterviewState, **kwargs) -> InterviewState:
     """Evaluate candidate's answer."""
-    # Safety check: if no history, skip
     if not state["history"]:
         return state
 
     last = state["history"][-1]
     
-    # If no answer provided yet, skip
     if not last.get("answer"):
         return state
 
-    # --- FIX: Read from session_config instead of top-level state ---
-    evaluation = await evaluate_answer(
-        user_answer=last["answer"],
-        jd=state["session_config"].get("jd", ""),
-        cv=state["session_config"].get("cv", "")
-    )
+    try:
+        # --- CRITICAL FIX: You must pass 'question=' here ---
+        evaluation = await evaluate_answer(
+            user_answer=last["answer"],
+            question=last["question"],             # <--- MAKE SURE THIS LINE EXISTS
+            jd=state["session_config"].get("jd", ""),
+            cv=state["session_config"].get("cv", ""),
+            stage=state["stage"]
+        )
+        last["evaluation"] = evaluation
 
-    last["evaluation"] = evaluation
+    except Exception as e:
+        print(f"Evaluation error: {e}")
+        last["evaluation"] = {
+            "summary": "Evaluation temporarily unavailable.", 
+            "clarity": 0, 
+            "confidence": 0, 
+            "technical_depth": 0
+        }
+
     return state
 
 async def decide_followup_node(state: InterviewState, **kwargs) -> InterviewState:
