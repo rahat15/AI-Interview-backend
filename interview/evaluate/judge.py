@@ -1,7 +1,6 @@
 """
 interview/evaluate/judge.py
 Evaluates a candidate's answer using Groq.
-Returns clean, consistent JSON required by LangGraph.
 """
 
 import os
@@ -18,11 +17,8 @@ GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 GROQ_MODEL = os.getenv("LLM_MODEL", "llama-3.1-8b-instant")
 
 
-# ---------------------------------------------------------
-# Safe JSON extraction
-# ---------------------------------------------------------
 def safe_json(text: str):
-    """Extract valid JSON, even if wrapped in other text."""
+    """Extract valid JSON."""
     try:
         return json.loads(text)
     except Exception:
@@ -34,14 +30,10 @@ def safe_json(text: str):
             return {"error": "Malformed JSON", "raw": text}
 
 
-# ---------------------------------------------------------
-# MAIN FUNCTION — this is what LangGraph calls
-# ---------------------------------------------------------
-async def evaluate_answer(user_answer: str, jd: str, cv: str, stage: str = "general") -> dict:
+# --- FIX: Accept 'question' argument to match graph.py call ---
+async def evaluate_answer(user_answer: str, question: str, jd: str, cv: str, stage: str = "general") -> dict:
     """
     Evaluate a candidate's answer using LLM.
-    ALWAYS returns JSON with required keys:
-      clarity, confidence, technical_depth, summary
     """
 
     if not user_answer:
@@ -52,10 +44,13 @@ async def evaluate_answer(user_answer: str, jd: str, cv: str, stage: str = "gene
             "summary": "No answer provided."
         }
 
+    # --- FIX: Pass actual question, JD, and CV to prompt ---
     prompt = BASE_EVALUATION_PROMPT.format(
         stage=stage,
-        question="(handled in graph)",
+        question=question,     # <--- Uses the specific question from history
         answer=user_answer,
+        jd=jd,
+        cv=cv
     ).strip()
 
     payload = {
@@ -73,9 +68,6 @@ async def evaluate_answer(user_answer: str, jd: str, cv: str, stage: str = "gene
         "Content-Type": "application/json",
     }
 
-    # -----------------------------------------------------
-    # Groq API CALL
-    # -----------------------------------------------------
     try:
         async with httpx.AsyncClient(timeout=25) as client:
             resp = await client.post(GROQ_API_URL, headers=headers, json=payload)
@@ -89,11 +81,10 @@ async def evaluate_answer(user_answer: str, jd: str, cv: str, stage: str = "gene
         content = data["choices"][0]["message"]["content"]
         result = safe_json(content)
 
-        # Ensure technical depth is zero for non-technical stages
+        # Force technical_depth to 0 for non-technical stages
         if stage in ["intro", "hr", "behavioral", "managerial", "wrap-up"]:
             result["technical_depth"] = 0
 
-        # Fill missing fields safely
         return {
             "clarity": int(result.get("clarity", 5)),
             "confidence": int(result.get("confidence", 5)),
@@ -106,11 +97,7 @@ async def evaluate_answer(user_answer: str, jd: str, cv: str, stage: str = "gene
         return _fallback(user_answer, str(e))
 
 
-# ---------------------------------------------------------
-# FALLBACK — NEVER let the pipeline break
-# ---------------------------------------------------------
 def _fallback(answer: str, reason: str):
-    """Fallback evaluation if LLM fails."""
     return {
         "clarity": 5,
         "confidence": 5,
@@ -118,18 +105,9 @@ def _fallback(answer: str, reason: str):
         "summary": f"(Fallback due to: {reason}) Answer: {answer[:80]}...",
     }
 
-
-# ---------------------------------------------------------
-# Summary aggregator (used for final reports)
-# ---------------------------------------------------------
 def summarize_scores(evaluations: list[dict]) -> dict:
     if not evaluations:
-        return {
-            "clarity": 0,
-            "confidence": 0,
-            "technical_depth": 0,
-            "overall": "No Data",
-        }
+        return {"clarity": 0, "confidence": 0, "technical_depth": 0, "overall": "No Data"}
 
     avg = {
         "clarity": sum(ev.get("clarity", 0) for ev in evaluations) / len(evaluations),
@@ -138,15 +116,8 @@ def summarize_scores(evaluations: list[dict]) -> dict:
     }
 
     overall = sum(avg.values()) / len(avg)
-
-    band = (
-        "Strong Fit" if overall >= 8.5
-        else "Average Fit" if overall >= 7
-        else "Weak Fit" if overall >= 5
-        else "No Hire"
-    )
-
-    # FIXED: cleaner version
+    band = "Strong Fit" if overall >= 8.5 else "Average Fit" if overall >= 7 else "Weak Fit" if overall >= 5 else "No Hire"
+    
     rounded = {k: round(v, 2) for k, v in avg.items()}
     rounded["overall"] = band
     return rounded

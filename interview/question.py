@@ -30,8 +30,6 @@ STAGE_MAP = {
 }
 
 
-# interview/question.py
-
 def _short_history(history):
     """
     Reduce history to the last 3 turns and format as text.
@@ -39,10 +37,10 @@ def _short_history(history):
     if not history:
         return "None"
 
-    # 1. Limit to last 3 exchanges
-    short = history[-3:] 
+    # Limit to last 3 exchanges to keep context focused
+    short = history[-3:]
     
-    # 2. Format as a clean string block instead of a raw list
+    # Format as a clean string block
     formatted = []
     for h in short:
         q_text = h.get("question", "")
@@ -51,36 +49,44 @@ def _short_history(history):
     
     return "\n\n".join(formatted)
 
+
 async def generate_question(state, stage: str, followup: bool = False) -> str:
     """
     Generate a question for the interview stage.
-    Returns a clean, concise question string.
     """
+    
+    # 1. Get Session Config (Safely)
+    # This prevents KeyError if session_config is missing
+    config = state.get("session_config", {})
 
-    # 1. Stage instructions
+    # 2. Stage instructions
     stage_fn = STAGE_MAP.get(stage)
     if not stage_fn:
         stage_instruction = "Ask a relevant and concise interview question."
     else:
         stage_instruction = stage_fn(state)["instruction"]
 
-    # 2. Short history
+    # 3. Short history
     history_context = _short_history(state.get("history"))
 
-    # 3. Build formatted prompt
-    # --- FIX: Read from session_config instead of top-level state ---
-    prompt = BASE_QUESTION_PROMPT.format(
-        role=state["session_config"]["role_title"],
-        company=state["session_config"]["company_name"],
-        industry=state["session_config"]["industry"],
-        stage=stage,
-        stage_instruction=stage_instruction,
-        experience=state["session_config"].get("experience", ""),
-        jd=state["session_config"].get("jd", ""),   # <--- FIXED
-        cv=state["session_config"].get("cv", ""),   # <--- FIXED
-        history=history_context,
-        followup_instructions=FOLLOWUP_INSTRUCTIONS if followup else "",
-    ).strip()
+    # 4. Build formatted prompt
+    # --- FIX: Read from 'config' variable safely ---
+    try:
+        prompt = BASE_QUESTION_PROMPT.format(
+            role=config.get("role_title", "Role"),
+            company=config.get("company_name", "Company"),
+            industry=config.get("industry", "Industry"),
+            stage=stage,
+            stage_instruction=stage_instruction,
+            experience=config.get("experience", ""),
+            jd=config.get("jd", ""),   # <--- FIX: Read from config
+            cv=config.get("cv", ""),   # <--- FIX: Read from config
+            history=history_context,
+            followup_instructions=FOLLOWUP_INSTRUCTIONS if followup else "",
+        ).strip()
+    except KeyError as e:
+        logger.error(f"Missing key in prompt formatting: {e}")
+        return "(Error: Prompt formatting failed. Check config.)"
 
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
@@ -94,7 +100,7 @@ async def generate_question(state, stage: str, followup: bool = False) -> str:
         "max_tokens": 200,
     }
 
-    # 4. Call Groq API
+    # 5. Call Groq API
     try:
         async with httpx.AsyncClient(timeout=25) as client:
             resp = await client.post(GROQ_API_URL, headers=headers, json=payload)
@@ -102,18 +108,14 @@ async def generate_question(state, stage: str, followup: bool = False) -> str:
 
         logger.info("Groq question response: %s", data)
 
-        # API error
         if "error" in data:
             msg = data["error"].get("message", "Unknown Groq error")
             return f"(Groq error: {msg})"
 
-        # No choices → bad response
         if "choices" not in data or not data["choices"]:
             return "(Error: Groq returned no question.)"
 
         content = data["choices"][0]["message"]["content"].strip()
-
-        # Clean any extra content — keep only first question-like sentence
         clean = content.split("\n")[0].strip()
         clean = clean.replace("Sure,", "").replace("Here's a question:", "").strip()
 
