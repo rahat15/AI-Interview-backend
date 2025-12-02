@@ -100,7 +100,8 @@ Do NOT introduce any new topic.
 # ---------------------------
 
 BASE_EVALUATION_PROMPT = """
-Evaluate the candidate's response.
+You are evaluating a candidate's answer. 
+Return ONLY valid JSON. No explanations.
 
 Context:
 - Stage: {stage}
@@ -108,19 +109,27 @@ Context:
 - CV: {cv}
 
 Question:
-{question}
+"{question}"
 
 Answer:
-{answer}
+"{answer}"
 
-Return JSON ONLY:
-{
-  "clarity": 1-10,
-  "confidence": 1-10,
-  "technical_depth": 1-10 (0 for non-technical stages),
-  "summary": "2-3 sentence evaluation"
-}
+Instructions:
+- "clarity" = communication quality (1-10)
+- "confidence" = tone & conviction (1-10)
+- "technical_depth" = technical relevance (1-10). If stage is NOT "technical", ALWAYS return 0.
+- "summary" = 2-3 sentence concise evaluation.
+
+Return JSON ONLY in this format:
+
+{{
+  "clarity": 0,
+  "confidence": 0,
+  "technical_depth": 0,
+  "summary": ""
+}}
 """
+
 
 # ---------------------------
 # Follow-up Decision

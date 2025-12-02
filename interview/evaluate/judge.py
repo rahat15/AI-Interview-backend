@@ -56,7 +56,7 @@ async def evaluate_answer(user_answer: str, question: str, jd: str, cv: str, sta
     payload = {
         "model": GROQ_MODEL,
         "messages": [
-            {"role": "system", "content": "You must output ONLY valid JSON."},
+            {"role": "system", "content": "You MUST return ONLY valid JSON. No text, no explanations, no Markdown."},,
             {"role": "user", "content": prompt},
         ],
         "temperature": 0,
