@@ -10,7 +10,7 @@ from .stages import (
     managerial_stage,
     wrapup_stage,
 )
-from .prompts import BASE_QUESTION_PROMPT, FOLLOWUP_INSTRUCTIONS
+from interview.prompts import BASE_QUESTION_PROMPT, FOLLOWUP_INSTRUCTIONS, STRICT_STAGE_INSTRUCTIONS
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +77,7 @@ async def generate_question(state, stage: str, followup: bool = False) -> str:
             company=config.get("company_name", "Company"),
             industry=config.get("industry", "Industry"),
             stage=stage,
-            stage_instruction=stage_instruction,
+            stage_instruction = STRICT_STAGE_INSTRUCTIONS.get(stage, "Ask a relevant question."),
             experience=config.get("experience", ""),
             jd=config.get("jd", ""),   # <--- FIX: Read from config
             cv=config.get("cv", ""),   # <--- FIX: Read from config
