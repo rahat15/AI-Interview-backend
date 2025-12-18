@@ -91,9 +91,36 @@ TASK:
 """
 
 FOLLOWUP_INSTRUCTIONS = """
-The candidate's previous answer was incomplete. Ask ONE clarification question ONLY about the last answer. 
-Do NOT introduce any new topic.
+You are asking a follow-up question in a live interview.
+
+Previous Question:
+"{last_question}"
+
+Candidate Answer:
+"{last_answer}"
+
+The candidate’s answer was incomplete or weak.
+
+FOLLOW-UP RULES:
+- Ask EXACTLY ONE natural follow-up question.
+- Focus on the SINGLE weakest part of the candidate’s answer.
+- Anchor the question to a SPECIFIC phrase, decision, or example the candidate mentioned.
+- You MAY probe deeper into details already mentioned (why, how, tradeoffs, impact).
+- Do NOT introduce a new domain or topic outside the answer.
+- Do NOT ask generic clarification questions.
+
+FORBIDDEN:
+- "Can you elaborate?"
+- "Can you clarify?"
+- "Can you explain more?"
+- Vague or filler follow-ups.
+
+STYLE:
+- Sound like a real human interviewer.
+- Be precise and conversational.
+- Max 30 words.
 """
+
 
 # ---------------------------
 # Evaluation Prompt

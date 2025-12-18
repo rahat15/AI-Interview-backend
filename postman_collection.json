@@ -1,0 +1,410 @@
+{
+  "info": {
+    "name": "AI Interview Backend",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Postman collection for the AI Interview Backend (endpoints discovered in the repository). Base URL set as a collection variable."
+  },
+  "item": [
+    {
+      "name": "Interview",
+      "item": [
+        {
+          "name": "Start Session",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"user-123\",\n  \"session_id\": \"session-123\",\n  \"role_title\": \"Backend Engineer\",\n  \"company_name\": \"Acme\",\n  \"industry\": \"Software\",\n  \"jd\": \"Design microservices in Python\",\n  \"cv\": \"Experienced Python backend engineer\",\n  \"round_type\": \"full\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/start",
+              "host": ["{{base_url}}"],
+              "path": ["start"]
+            },
+            "description": "Start a new interview session"
+          },
+          "response": []
+        },
+        {
+          "name": "Submit Answer",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"user-123\",\n  \"session_id\": \"session-123\",\n  \"answer\": \"My concise answer to the question\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/answer",
+              "host": ["{{base_url}}"],
+              "path": ["answer"]
+            },
+            "description": "Submit an answer for evaluation and progress the graph"
+          },
+          "response": []
+        },
+        {
+          "name": "Get State",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/state/:user_id/:session_id",
+              "host": ["{{base_url}}"],
+              "path": ["state", ":user_id", ":session_id"],
+              "variable": [
+                { "key": "user_id", "value": "user-123" },
+                { "key": "session_id", "value": "session-123" }
+              ]
+            },
+            "description": "Get current interview state for a session"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Report",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/report/:user_id/:session_id",
+              "host": ["{{base_url}}"],
+              "path": ["report", ":user_id", ":session_id"],
+              "variable": [
+                { "key": "user_id", "value": "user-123" },
+                { "key": "session_id", "value": "session-123" }
+              ]
+            },
+            "description": "Get a structured interview report"
+          },
+          "response": []
+        },
+        {
+          "name": "Get User Sessions (Interview Router)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/sessions/:user_id",
+              "host": ["{{base_url}}"],
+              "path": ["sessions", ":user_id"],
+              "variable": [{ "key": "user_id", "value": "user-123" }]
+            },
+            "description": "Get all interview sessions for a specific user (interview router route)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "CV",
+      "item": [
+        {
+          "name": "Score CV (CV-only)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cv_text\": \"<raw resume text here>\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/cv/score",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "cv", "score"]
+            },
+            "description": "Return CV quality scores (no JD match)"
+          },
+          "response": []
+        },
+        {
+          "name": "Fit Index (CV + JD)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cv_text\": \"<resume text>\",\n  \"jd_text\": \"<job description text>\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/cv/fit-index",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "cv", "fit-index"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Generate CV Improvements",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cv_text\": \"<resume text>\",\n  \"jd_text\": \"<job description>\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/cv/improvement",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "cv", "improvement"]
+            },
+            "description": "Generate tailored resume/benchmark/cover letter"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Upload (evaluate / improvement)",
+      "item": [
+        {
+          "name": "Upload CV & Evaluate (multipart)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "/path/to/resume.pdf"
+                },
+                {
+                  "key": "jd_text",
+                  "type": "text",
+                  "value": "Optional job description text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/upload/cv_evaluate",
+              "host": ["{{base_url}}"],
+              "path": ["upload", "cv_evaluate"]
+            },
+            "description": "Upload a CV file and optionally provide JD text or JD file"
+          },
+          "response": []
+        },
+        {
+          "name": "Upload CV & Generate Improvement (multipart)",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "src": "/path/to/resume.pdf" },
+                { "key": "jd_text", "type": "text", "value": "Job description text" }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/upload/cv_improvement",
+              "host": ["{{base_url}}"],
+              "path": ["upload", "cv_improvement"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Uploads (artifacts)",
+      "item": [
+        {
+          "name": "Upload CV (artifact)",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "src": "/path/to/resume.pdf" }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/uploads/cv",
+              "host": ["{{base_url}}"],
+              "path": ["uploads", "cv"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Upload JD (artifact)",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "src": "/path/to/jd.pdf" }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/uploads/jd",
+              "host": ["{{base_url}}"],
+              "path": ["uploads", "jd"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Artifact",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/uploads/:artifact_id",
+              "host": ["{{base_url}}"],
+              "path": ["uploads", ":artifact_id"],
+              "variable": [{ "key": "artifact_id", "value": "<artifact_id>" }]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Artifact",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/uploads/:artifact_id",
+              "host": ["{{base_url}}"],
+              "path": ["uploads", ":artifact_id"],
+              "variable": [{ "key": "artifact_id", "value": "<artifact_id>" }]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Sessions (mock endpoints)",
+      "item": [
+        {
+          "name": "Create Session (mock)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"Backend\",\n  \"industry\": \"Software\",\n  \"company\": \"Acme\",\n  \"cv_file_id\": \"...\",\n  \"jd_file_id\": \"...\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/sessions/",
+              "host": ["{{base_url}}"],
+              "path": ["sessions", ""]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Session",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/sessions/:session_id",
+              "host": ["{{base_url}}"],
+              "path": ["sessions", ":session_id"],
+              "variable": [{ "key": "session_id", "value": "<session_id>" }]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Sessions",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/sessions/",
+              "host": ["{{base_url}}"],
+              "path": ["sessions", ""]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Next Question (mock)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/sessions/:session_id/next-question",
+              "host": ["{{base_url}}"],
+              "path": ["sessions", ":session_id", "next-question"],
+              "variable": [{ "key": "session_id", "value": "<session_id>" }]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Submit Answer (mock)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question_id\": \"<id>\",\n  \"text\": \"My answer\",\n  \"audio_url\": \"\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/sessions/:session_id/answer",
+              "host": ["{{base_url}}"],
+              "path": ["sessions", ":session_id", "answer"],
+              "variable": [{ "key": "session_id", "value": "<session_id>" }]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Session Report (mock)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/sessions/:session_id/report",
+              "host": ["{{base_url}}"],
+              "path": ["sessions", ":session_id", "report"],
+              "variable": [{ "key": "session_id", "value": "<session_id>" }]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Session (mock)",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/sessions/:session_id",
+              "host": ["{{base_url}}"],
+              "path": ["sessions", ":session_id"],
+              "variable": [{ "key": "session_id", "value": "<session_id>" }]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Evaluation",
+      "item": [
+        {
+          "name": "Evaluate CV vs JD (JSON)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cv_text\": \"<resume text>\",\n  \"jd_text\": \"<job description>\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/evaluation/cv",
+              "host": ["{{base_url}}"],
+              "path": ["evaluation", "cv"]
+            },
+            "description": "Evaluate CV text against JD text (JSON input)"
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    { "key": "base_url", "value": "http://34.27.237.113:8000", "type": "string" }
+  ]
+}

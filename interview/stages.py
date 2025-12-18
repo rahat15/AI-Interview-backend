@@ -10,38 +10,39 @@ Core stage definitions and stage order resolution.
 def intro_stage(state):
     return {
         "stage": "intro",
-        "instruction": "Start with CV highlights, small talk, and ice-breaker questions."
+        "instruction": "Only background, ice-breakers, general conversation. No technical content."
     }
 
 def hr_stage(state):
     return {
         "stage": "hr",
-        "instruction": "Ask about motivations, culture fit, strengths, and weaknesses."
+        "instruction": "Only HR/culture-fit topics. No technical, system design, or coding topics."
     }
 
 def technical_stage(state):
     return {
         "stage": "technical",
-        "instruction": "Ask role-specific technical questions from JD and CV."
+        "instruction": "Technical questions ONLY: FastAPI, Redis, PostgreSQL, microservices, distributed systems."
     }
 
 def behavioral_stage(state):
     return {
         "stage": "behavioral",
-        "instruction": "Ask STAR-based behavioral questions (Situation, Task, Action, Result)."
+        "instruction": "STAR-format behavioral questions ONLY. No technical or HR questions."
     }
 
 def managerial_stage(state):
     return {
         "stage": "managerial",
-        "instruction": "Ask leadership, decision-making, and conflict resolution scenarios."
+        "instruction": "Leadership, delegation, conflict, ownership questions ONLY. No technical content."
     }
 
 def wrapup_stage(state):
     return {
         "stage": "wrap-up",
-        "instruction": "Ask final closing questions, candidate queries, and wrap-up."
+        "instruction": "Closing questions ONLY."
     }
+
 
 # ---------------------------
 # Question Count Configuration

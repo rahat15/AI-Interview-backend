@@ -10,16 +10,24 @@ from .stages import (
     managerial_stage,
     wrapup_stage,
 )
-from interview.prompts import BASE_QUESTION_PROMPT, FOLLOWUP_INSTRUCTIONS, STRICT_STAGE_INSTRUCTIONS
+from interview.prompts import (
+    BASE_QUESTION_PROMPT,
+    FOLLOWUP_INSTRUCTIONS,
+    STRICT_STAGE_INSTRUCTIONS,
+)
 
 logger = logging.getLogger(__name__)
 
-# Config
+# --------------------------------------------------
+# Groq API Config
+# --------------------------------------------------
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 GROQ_MODEL = os.getenv("LLM_MODEL", "llama-3.1-8b-instant")
 
-# Stage-to-function map
+# --------------------------------------------------
+# Stage Map (kept for compatibility, though you use strict prompts)
+# --------------------------------------------------
 STAGE_MAP = {
     "intro": intro_stage,
     "hr": hr_stage,
@@ -31,61 +39,59 @@ STAGE_MAP = {
 
 
 def _short_history(history):
-    """
-    Reduce history to the last 3 turns and format as text.
-    """
+    """Reduce history to last 3 turns and format as readable text."""
     if not history:
         return "None"
 
-    # Limit to last 3 exchanges to keep context focused
     short = history[-3:]
-    
-    # Format as a clean string block
     formatted = []
     for h in short:
         q_text = h.get("question", "")
         a_text = h.get("answer") or "(No answer)"
         formatted.append(f"Interviewer: {q_text}\nCandidate: {a_text}")
-    
+
     return "\n\n".join(formatted)
 
 
-async def generate_question(state, stage: str, followup: bool = False) -> str:
+async def generate_question(state: dict, stage: str, followup: bool = False) -> str:
     """
     Generate a question for the interview stage.
+    If followup=True, inject last Q&A into the follow-up instructions to make follow-ups realistic.
     """
-    
-    # 1. Get Session Config (Safely)
-    # This prevents KeyError if session_config is missing
+
     config = state.get("session_config", {})
+    history = state.get("history", [])
+    last = history[-1] if history else {}
 
-    # 2. Stage instructions
-    stage_fn = STAGE_MAP.get(stage)
-    if not stage_fn:
-        stage_instruction = "Ask a relevant and concise interview question."
-    else:
-        stage_instruction = stage_fn(state)["instruction"]
+    # Strict stage instructions
+    stage_instruction = STRICT_STAGE_INSTRUCTIONS.get(stage, "Ask a relevant question.")
 
-    # 3. Short history
-    history_context = _short_history(state.get("history"))
+    # Short history for context
+    history_context = _short_history(history)
 
-    # 4. Build formatted prompt
-    # --- FIX: Read from 'config' variable safely ---
+    # Build follow-up instructions (inject last Q&A)
+    followup_block = ""
+    if followup and last:
+        followup_block = FOLLOWUP_INSTRUCTIONS.format(
+            last_question=last.get("question", ""),
+            last_answer=last.get("answer", ""),
+        )
+
+    # Build prompt
     try:
         prompt = BASE_QUESTION_PROMPT.format(
             role=config.get("role_title", "Role"),
             company=config.get("company_name", "Company"),
             industry=config.get("industry", "Industry"),
             stage=stage,
-            stage_instruction = STRICT_STAGE_INSTRUCTIONS.get(stage, "Ask a relevant question."),
-            experience=config.get("experience", ""),
-            jd=config.get("jd", ""),   # <--- FIX: Read from config
-            cv=config.get("cv", ""),   # <--- FIX: Read from config
+            stage_instruction=stage_instruction,
+            jd=config.get("jd", ""),
+            cv=config.get("cv", ""),
             history=history_context,
-            followup_instructions=FOLLOWUP_INSTRUCTIONS if followup else "",
+            followup_instructions=followup_block,
         ).strip()
     except KeyError as e:
-        logger.error(f"Missing key in prompt formatting: {e}")
+        logger.error("Missing key in prompt formatting: %s", e)
         return "(Error: Prompt formatting failed. Check config.)"
 
     headers = {
@@ -100,7 +106,7 @@ async def generate_question(state, stage: str, followup: bool = False) -> str:
         "max_tokens": 200,
     }
 
-    # 5. Call Groq API
+    # Call Groq API
     try:
         async with httpx.AsyncClient(timeout=25) as client:
             resp = await client.post(GROQ_API_URL, headers=headers, json=payload)
@@ -116,8 +122,15 @@ async def generate_question(state, stage: str, followup: bool = False) -> str:
             return "(Error: Groq returned no question.)"
 
         content = data["choices"][0]["message"]["content"].strip()
+
+        # Keep only first line and strip common filler
         clean = content.split("\n")[0].strip()
-        clean = clean.replace("Sure,", "").replace("Here's a question:", "").strip()
+        clean = (
+            clean.replace("Sure,", "")
+            .replace("Here is a question:", "")
+            .replace("Here's a question:", "")
+            .strip()
+        )
 
         return clean
 

@@ -11,11 +11,16 @@ from interview.prompts import FOLLOWUP_DECISION_PROMPT
 
 logger = logging.getLogger(__name__)
 
-# Groq API config
+# --------------------------------------------------
+# Groq API Config
+# --------------------------------------------------
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 GROQ_MODEL = os.getenv("LLM_MODEL", "llama-3.1-8b-instant")
 
+# --------------------------------------------------
+# Follow-up limits per stage
+# --------------------------------------------------
 MAX_FOLLOWUPS = {
     "intro": 1,
     "hr": 1,
@@ -26,21 +31,15 @@ MAX_FOLLOWUPS = {
 }
 
 
-# -----------------------------------------------------------
-# SAFE PARSER (LLM output → JSON)
-# -----------------------------------------------------------
 def safe_parse_json(text: str) -> dict:
     """
-    Robust JSON parsing for LLM responses.
-    - Removes non-JSON prefixes/suffixes
-    - Tries multiple fallback attempts
+    Robust JSON parsing for LLM output.
     """
     try:
         return json.loads(text)
     except Exception:
         pass
 
-    # Try to extract JSON substring
     try:
         start = text.index("{")
         end = text.rindex("}") + 1
@@ -48,50 +47,30 @@ def safe_parse_json(text: str) -> dict:
     except Exception:
         pass
 
-    # Final fallback
-    return {
-        "decision": "stage_transition",
-        "reason": "Invalid JSON from LLM"
-    }
+    return {"decision": "stage_transition", "reason": "Invalid JSON from LLM"}
 
 
-# -----------------------------------------------------------
-# MAIN FUNCTION — used by LangGraph
-# -----------------------------------------------------------
 async def followup_decision(state: dict) -> dict:
     """
-    Determine whether to ask a follow-up or transition to the next stage.
-    Enforces stage-based follow-up limits and prevents infinite loops.
+    Decide whether to ask a follow-up or move to the next stage.
     """
 
     history = state.get("history", [])
     stage = state.get("stage", "intro")
 
-    # No history → move on
     if not history:
-        return {"decision": "stage_transition", "reason": "No prior responses"}
+        return {"decision": "stage_transition", "reason": "No prior response"}
 
     last = history[-1]
+    evaluation = last.get("evaluation", {}) or {}
 
-    # Extract evaluation safely
-    eval_data = last.get("evaluation") or {}
-    clarity = int(eval_data.get("clarity", 0))
-    confidence = int(eval_data.get("confidence", 0))
-    tech_depth = int(eval_data.get("technical_depth", 0))
+    clarity = int(evaluation.get("clarity", 0))
+    confidence = int(evaluation.get("confidence", 0))
+    tech_depth = int(evaluation.get("technical_depth", 0))
 
-    # ------------------------------------------
-    # 🔒 STAGE-BASED FOLLOWUP LIMITS
-    # ------------------------------------------
-    MAX_FOLLOWUPS = {
-        "intro": 1,
-        "hr": 1,
-        "behavioral": 1,
-        "managerial": 1,
-        "wrap-up": 0,
-        "technical": 2,
-    }
-
+    # --------------------------------------------------
     # Count recent follow-ups
+    # --------------------------------------------------
     recent_fups = 0
     for h in reversed(history):
         if h.get("is_followup"):
@@ -102,39 +81,29 @@ async def followup_decision(state: dict) -> dict:
     if recent_fups >= MAX_FOLLOWUPS.get(stage, 1):
         return {"decision": "stage_transition", "reason": "Follow-up limit reached"}
 
-    # ------------------------------------------
-    # 🛑 Wrap-up stage never loops
-    # ------------------------------------------
     if stage == "wrap-up":
         return {"decision": "stage_transition", "reason": "End of interview"}
 
-    # ------------------------------------------
-    # 🧹 Stage-specific adjustments
-    # ------------------------------------------
-
-    # Non-technical stages ignore technical depth entirely
+    # Non-technical stages ignore technical depth
     if stage != "technical":
-        tech_depth = 10  # treat as "good enough"
+        tech_depth = 10
 
-    # Blank answer → follow-up
+    # Blank answer
     if not last.get("answer"):
         return {"decision": "followup", "reason": "Blank answer"}
 
-    # Weak clarity or confidence → follow-up
+    # Low clarity or confidence
     if clarity <= 4 or confidence <= 4:
-        return {"decision": "followup", "reason": "Low clarity/confidence"}
+        return {"decision": "followup", "reason": "Low clarity or confidence"}
 
-    # Strong answer → move on
+    # Strong answer → move on (unless technical depth weak)
     if clarity >= 7 and confidence >= 7:
-        if stage == "technical" and tech_depth < 6:
-            # strong communication but weak technical detail → follow-up allowed
-            pass
-        else:
+        if stage != "technical" or tech_depth >= 6:
             return {"decision": "stage_transition", "reason": "Strong answer"}
 
-    # ------------------------------------------
-    # 🤔 Borderline → Ask LLM to decide
-    # ------------------------------------------
+    # --------------------------------------------------
+    # Borderline → LLM decides
+    # --------------------------------------------------
     prompt = FOLLOWUP_DECISION_PROMPT.format(
         stage=stage,
         question=last.get("question", ""),
@@ -167,16 +136,17 @@ async def followup_decision(state: dict) -> dict:
         raw = data["choices"][0]["message"]["content"].strip()
         decision = safe_parse_json(raw)
 
-        # Validate structured output
-        if decision.get("decision") not in ["followup", "stage_transition"]:
+        if decision.get("decision") not in ("followup", "stage_transition"):
             return {"decision": "stage_transition", "reason": "Invalid model output"}
 
-        # Hard-enforce follow-up limit again after model decision
-        if decision["decision"] == "followup" and recent_fups + 1 > MAX_FOLLOWUPS[stage]:
+        if (
+            decision["decision"] == "followup"
+            and recent_fups + 1 > MAX_FOLLOWUPS.get(stage, 1)
+        ):
             return {"decision": "stage_transition", "reason": "Follow-up limit reached"}
 
         return decision
 
     except Exception as e:
-        logger.exception("Follow-up LLM failed")
+        logger.exception("Follow-up decision failed")
         return {"decision": "stage_transition", "reason": f"Error: {str(e)}"}

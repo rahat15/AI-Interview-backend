@@ -1,5 +1,6 @@
 from langgraph.graph import StateGraph, END
 from typing import TypedDict, List, Literal, Any
+
 from interview.question import generate_question
 from interview.evaluate.judge import evaluate_answer
 from interview.followup import followup_decision
@@ -16,13 +17,14 @@ class InterviewHistoryItem(TypedDict):
     stage: str
     is_followup: bool
 
+
 class InterviewState(TypedDict):
     stage: Literal["intro", "technical", "behavioral", "hr", "managerial", "wrap-up"]
-    # jd/cv are now inside session_config to save memory
     session_config: dict
     history: List[InterviewHistoryItem]
     should_follow_up: bool
     completed: bool
+
 
 # ---------------------------
 # Graph Nodes
@@ -33,7 +35,7 @@ async def ask_question(state: InterviewState, **kwargs) -> InterviewState:
     stage = state["stage"]
     followup = state.get("should_follow_up", False)
 
-    # generate_question handles fetching JD/CV from session_config internally
+    # generate_question handles JD/CV from session_config
     q = await generate_question(state, stage, followup)
 
     state["history"].append({
@@ -41,10 +43,10 @@ async def ask_question(state: InterviewState, **kwargs) -> InterviewState:
         "answer": None,
         "evaluation": None,
         "stage": stage,
-        "is_followup": followup
+        "is_followup": followup,  # ✅ persisted for follow-up counting
     })
 
-    # Reset follow-up flag
+    # Reset follow-up flag after asking
     state["should_follow_up"] = False
     return state
 
@@ -55,27 +57,27 @@ async def evaluate_answer_node(state: InterviewState, **kwargs) -> InterviewStat
         return state
 
     last = state["history"][-1]
-    
+
+    # No answer yet
     if not last.get("answer"):
         return state
 
     try:
-        # Pass question, jd, and cv to the evaluator
         evaluation = await evaluate_answer(
             user_answer=last["answer"],
             question=last["question"],
             jd=state["session_config"].get("jd", ""),
             cv=state["session_config"].get("cv", ""),
-            stage=state["stage"]
+            stage=state["stage"],
         )
         last["evaluation"] = evaluation
     except Exception as e:
         print(f"Evaluation error: {e}")
         last["evaluation"] = {
-            "summary": "Evaluation skipped due to error.", 
-            "clarity": 0, 
-            "confidence": 0, 
-            "technical_depth": 0
+            "summary": "Evaluation skipped due to error.",
+            "clarity": 0,
+            "confidence": 0,
+            "technical_depth": 0,
         }
 
     return state
@@ -83,8 +85,8 @@ async def evaluate_answer_node(state: InterviewState, **kwargs) -> InterviewStat
 
 async def decide_followup_node(state: InterviewState, **kwargs) -> InterviewState:
     """Decide whether to follow up or move to the next stage."""
-    
-    # 1. Count consecutive follow-ups to prevent infinite loops
+
+    # Optional: extra guard to prevent pathological loops (keep if you want)
     history = state.get("history", [])
     consecutive_followups = 0
     if history:
@@ -93,8 +95,8 @@ async def decide_followup_node(state: InterviewState, **kwargs) -> InterviewStat
                 consecutive_followups += 1
             else:
                 break
-    
-    # 2. Max follow-up limit (set to 4)
+
+    # Hard stop (graph-level) — your followup.py already enforces stage-based limits
     if consecutive_followups >= 4:
         state["should_follow_up"] = False
         return state
@@ -105,9 +107,7 @@ async def decide_followup_node(state: InterviewState, **kwargs) -> InterviewStat
 
 
 def stage_transition_node(state: InterviewState, **kwargs) -> InterviewState:
-    """
-    Transition to next stage based on stages.py configuration.
-    """
+    """Transition to next stage based on stages.py configuration."""
     if state.get("should_follow_up"):
         return state
 
@@ -116,9 +116,10 @@ def stage_transition_node(state: InterviewState, **kwargs) -> InterviewState:
     current_stage = state["stage"]
 
     history = state.get("history", [])
+
     # Count only main questions (not follow-ups)
     current_stage_count = sum(
-        1 for h in history 
+        1 for h in history
         if h.get("stage") == current_stage and not h.get("is_followup", False)
     )
 
@@ -172,7 +173,7 @@ def build_graph(config: dict) -> Any:
         route_start,
         {
             "ask_question": "ask_question",
-            "evaluate_answer": "evaluate_answer"
+            "evaluate_answer": "evaluate_answer",
         }
     )
 
@@ -193,7 +194,7 @@ def build_graph(config: dict) -> Any:
         check_done,
         {
             "ask_question": "ask_question",
-            END: END
+            END: END,
         }
     )
 
