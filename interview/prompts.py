@@ -8,55 +8,132 @@ Stricter, stage-safe prompts to prevent technical contamination.
 # ---------------------------
 
 STRICT_STAGE_INSTRUCTIONS = {
+
     "intro": """
-Ask ONLY introductory, background, small-talk, and career-path questions.
-ABSOLUTELY DO NOT ask technical, HR, behavioral, or managerial questions.
+Ask ONLY introductory and background questions.
+
+Focus on:
+- personal background
+- career path
+- interests related to the role
+- high-level motivation
+
+Rules:
+- Questions must be non-technical.
+- Do not assess skills or knowledge depth.
+- Keep the tone conversational and welcoming.
+- Questions should naturally connect to the candidate’s CV or career trajectory.
+
+FORBIDDEN:
+- technical concepts
+- system design
+- behavioral STAR questions
+- HR or managerial evaluation
 """,
 
     "hr": """
-Ask ONLY HR/culture-fit questions.
-Allowed topics:
-- motivation
-- teamwork
-- communication
-- strengths & weaknesses
-- workplace values
-FORBIDDEN: any technical, system design, coding, algorithms, databases, or behavioral STAR questions.
+Ask ONLY HR and culture-fit questions.
+
+Focus on:
+- motivation for the role or company
+- teamwork and collaboration
+- communication style
+- strengths and areas for growth
+- workplace values and expectations
+
+Rules:
+- Keep questions people-focused, not skill-focused.
+- Do not test technical ability or problem-solving.
+- Avoid hypotheticals that resemble behavioral STAR questions.
+
+FORBIDDEN:
+- technical topics
+- system design
+- coding or tools
+- behavioral STAR framing
 """,
 
     "technical": """
-Ask ONLY deep technical questions based on JD & CV.
-Allowed topics:
-- FastAPI
-- Microservices
-- Redis
-- PostgreSQL
-- Distributed systems
-- System design
-FORBIDDEN: HR, behavioral, managerial, cultural, or personality questions.
+Ask ONLY technical questions grounded in the Job Description and the candidate’s CV.
+
+Focus on:
+- skills, tools, or concepts explicitly mentioned in the JD or CV
+- relevant engineering or ML fundamentals
+- practical understanding and reasoning
+- components, workflows, or design decisions within the candidate’s stated experience
+
+Rules:
+- Do NOT introduce technologies or domains not implied by the JD or CV.
+- Prefer single-concept or single-component questions.
+- Progress from conceptual understanding to deeper technical reasoning.
+- Avoid repeating the same technology across multiple questions.
+- Questions must be answerable without assuming senior-level ownership.
+
+FORBIDDEN:
+- HR, cultural, or personality questions
+- behavioral STAR questions
+- managerial or leadership evaluation
 """,
 
     "behavioral": """
-Ask ONLY STAR-method behavioral questions:
-- Situation
-- Task
-- Action
-- Result
-FORBIDDEN: technical, HR/culture, personal, or leadership questions.
+Ask ONLY behavioral questions using the STAR method.
+
+Focus on:
+- real past experiences
+- challenges faced
+- actions taken
+- outcomes and learnings
+
+Rules:
+- Frame questions explicitly around past situations.
+- Do not test technical knowledge.
+- Do not ask hypothetical or future-oriented questions.
+- Keep one experience per question.
+
+FORBIDDEN:
+- technical evaluation
+- HR/culture-fit questions
+- leadership or managerial assessment
 """,
 
     "managerial": """
-Ask ONLY leadership, decision-making, delegation, mentoring, conflict resolution, delivery ownership questions.
-FORBIDDEN: technical, STAR behavioral, HR cultural questions.
+Ask ONLY leadership and ownership questions.
+
+Focus on:
+- decision-making
+- prioritization
+- ownership and accountability
+- mentoring or guiding others
+- handling conflict or ambiguity
+
+Rules:
+- Questions should assume responsibility or influence over others.
+- Do not assess technical implementation details.
+- Avoid STAR framing; focus on judgment and leadership mindset.
+
+FORBIDDEN:
+- technical questions
+- HR/culture-fit questions
+- behavioral STAR questions
 """,
 
     "wrap-up": """
-Ask ONLY ending/closing questions.
-Allowed:
-- any questions for us?
-- timeline?
-- expectations?
-FORBIDDEN: technical, HR, behavioral, managerial.
+Ask ONLY closing questions.
+
+Focus on:
+- candidate questions
+- expectations for the role
+- next steps or timelines
+- anything the candidate wants to clarify
+
+Rules:
+- Keep it light and open-ended.
+- Do not introduce new evaluation topics.
+
+FORBIDDEN:
+- technical questions
+- HR evaluation
+- behavioral or managerial assessment
 """
 }
 
