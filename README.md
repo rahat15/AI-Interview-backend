@@ -15,6 +15,7 @@ A production-ready service that conducts adaptive interviews by ingesting CV/JD 
 
 ### Prerequisites
 - Docker & Docker Compose
+- MongoDB Atlas account (or local MongoDB)
 - Make (optional, for convenience commands)
 
 ### Development Setup
@@ -25,26 +26,27 @@ git clone <your-repo>
 cd interview-coach-api
 ```
 
-2. **Start the stack**:
+2. **Configure environment**:
+```bash
+# Update .env with your MongoDB Atlas URI
+MONGO_URI=mongodb+srv://your-user:your-password@cluster.mongodb.net/ai-interview?retryWrites=true&w=majority
+```
+
+3. **Start the stack**:
 ```bash
 docker-compose up -d
 ```
 
-3. **Initialize database**:
+4. **Initialize MongoDB**:
 ```bash
-docker-compose exec api alembic upgrade head
-```
-
-4. **Seed demo data**:
-```bash
-docker-compose exec api python -m scripts.seed_demo
+docker-compose exec api python -m scripts.init_mongo
 ```
 
 5. **Access services**:
-- API: http://localhost:8080
-- Swagger Docs: http://localhost:8080/docs
-- OpenAPI: http://localhost:8080/openapi.json
-- Health: http://localhost:8080/healthz
+- API: http://localhost:8000
+- Swagger Docs: http://localhost:8000/docs
+- OpenAPI: http://localhost:8000/openapi.json
+- Health: http://localhost:8000/healthz
 
 ### Example Usage
 
@@ -100,16 +102,16 @@ curl -X GET "http://localhost:8080/v1/sessions/{session_id}/report" \
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   FastAPI App   │    │   Redis + RQ    │    │   PostgreSQL    │
-│   (Port 8080)   │◄──►│   (Port 6379)   │◄──►│   (Port 5432)   │
+│   FastAPI App   │    │   Redis + RQ    │    │  MongoDB Atlas  │
+│   (Port 8000)   │◄──►│   (Port 6379)   │◄──►│   (Cloud)       │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
          │                       │                       │
          │                       │                       │
          ▼                       ▼                       ▼
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│  LangGraph      │    │  Background     │    │  pgvector       │
-│  Interview      │    │  Workers        │    │  Embeddings     │
-│  State Machine  │    │  (Scoring)      │    │  Store          │
+│  LangGraph      │    │  Background     │    │  Beanie ODM     │
+│  Interview      │    │  Workers        │    │  Vector Search  │
+│  State Machine  │    │  (Scoring)      │    │  Collections    │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
 
@@ -159,7 +161,7 @@ Create a `.env` file in the root directory:
 
 ```env
 # Database
-DATABASE_URL=postgresql://postgres:password@localhost:5432/interview_coach
+MONGO_URI=mongodb+srv://your-user:your-password@cluster.mongodb.net/ai-interview?retryWrites=true&w=majority
 REDIS_URL=redis://localhost:6379/0
 
 # Security
@@ -172,10 +174,11 @@ API_V1_STR=/v1
 PROJECT_NAME=Interview Coach API
 BACKEND_CORS_ORIGINS=["http://localhost:3000"]
 
-# Sentry (optional)
-SENTRY_DSN=your-sentry-dsn
+# LLM Settings
+GROQ_API_KEY=your-groq-api-key
+LLM_MODEL=llama-3.1-8b-instant
 
-# Embeddings (for production)
+# Embeddings
 EMBEDDINGS_MODEL=local  # or 'openai', 'cohere', etc.
 ```
 
@@ -193,16 +196,13 @@ docker-compose exec api pytest --cov=apps --cov=core --cov=interview
 docker-compose exec api pytest tests/test_api.py -v
 ```
 
-### Database Migrations
+### Database Operations
 ```bash
-# Create new migration
-docker-compose exec api alembic revision --autogenerate -m "Description"
+# Initialize MongoDB indexes and collections
+docker-compose exec api python -m scripts.init_mongo
 
-# Apply migrations
-docker-compose exec api alembic upgrade head
-
-# Rollback migration
-docker-compose exec api alembic downgrade -1
+# Run data migration from PostgreSQL (if needed)
+docker-compose exec api python -m scripts.migrate_to_mongo
 ```
 
 ### Code Quality

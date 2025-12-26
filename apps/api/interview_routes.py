@@ -1,9 +1,121 @@
 # apps/api/routers/interview_routes.py
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, File, UploadFile, Form
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 from interview.session_manager import interview_manager
+import tempfile
+import os
+
+# Helper functions for fetching content
+async def fetch_resume_content(resume_id: str) -> Optional[str]:
+    """Fetch resume content from MongoDB"""
+    try:
+        from bson import ObjectId
+        from core.db import get_database
+        
+        db = await get_database()
+        print(f"🔍 Searching for resume with ID: {resume_id}")
+        
+        # Try to find resume
+        resume_doc = None
+        if ObjectId.is_valid(resume_id):
+            resume_doc = await db.resumes.find_one({"_id": ObjectId(resume_id)})
+            print(f"🔍 ObjectId query result: {resume_doc is not None}")
+        
+        if not resume_doc:
+            resume_doc = await db.resumes.find_one({"_id": resume_id})
+            print(f"🔍 String ID query result: {resume_doc is not None}")
+        
+        if not resume_doc:
+            resume_doc = await db.resumes.find_one({"user": resume_id})
+            print(f"🔍 User ID query result: {resume_doc is not None}")
+        
+        if resume_doc:
+            print(f"🔍 Found resume: {resume_doc.get('filename', 'Unknown')}")
+            
+            # Try to fetch file content from path
+            file_path = resume_doc.get("path", "")
+            if file_path:
+                try:
+                    import httpx
+                    async with httpx.AsyncClient(timeout=5.0) as client:
+                        response = await client.get(f"http://localhost:3000/{file_path}")
+                        if response.status_code == 200:
+                            content = response.text
+                            print(f"✅ Fetched file content: {len(content)} chars")
+                            return content
+                except Exception as e:
+                    print(f"⚠️ Failed to fetch file content: {e}")
+            
+            # Fallback to stats or basic info
+            stats = resume_doc.get("stats", {})
+            if stats:
+                # Extract meaningful content from stats
+                cv_quality = stats.get("cv_quality", {})
+                subscores = cv_quality.get("subscores", [])
+                
+                content_parts = [f"Resume: {resume_doc.get('filename', 'Unknown')}"]
+                
+                for subscore in subscores:
+                    evidence = subscore.get("evidence", [])
+                    if evidence:
+                        content_parts.extend(evidence)
+                
+                content = "\n".join(content_parts)
+                print(f"✅ Generated content from stats: {len(content)} chars")
+                return content
+            
+            # Final fallback
+            return f"Resume: {resume_doc.get('filename', 'Unknown')} (Content not available)"
+        
+        print(f"❌ No resume found with ID: {resume_id}")
+        return None
+    except Exception as e:
+        print(f"❌ Error fetching resume content: {e}")
+        return None
+
+async def fetch_jd_content(jd_id: str) -> Optional[str]:
+    """Fetch JD content from MongoDB"""
+    try:
+        from bson import ObjectId
+        from core.db import get_database
+        
+        db = await get_database()
+        
+        # Try to find JD
+        jd_doc = None
+        if ObjectId.is_valid(jd_id):
+            jd_doc = await db.jobdescriptions.find_one({"_id": ObjectId(jd_id)})
+        
+        if not jd_doc:
+            jd_doc = await db.jobdescriptions.find_one({"_id": jd_id})
+        
+        if jd_doc:
+            # Return text content if available
+            text_content = jd_doc.get("text", "")
+            if text_content:
+                return text_content
+            
+            # Try to fetch file content from path
+            file_path = jd_doc.get("path", "")
+            if file_path:
+                try:
+                    import httpx
+                    async with httpx.AsyncClient() as client:
+                        response = await client.get(f"http://localhost:3000/{file_path}")
+                        if response.status_code == 200:
+                            return response.text
+                except:
+                    pass
+            
+            # Fallback to filename
+            return f"Job Description: {jd_doc.get('filename', 'Unknown')}"
+        
+        return None
+    except Exception as e:
+        print(f"Error fetching JD content: {e}")
+        return None
 
 # No prefix here; prefix is added in app.include_router
 router = APIRouter(tags=["Interview"])
@@ -20,6 +132,8 @@ class StartSessionRequest(BaseModel):
     industry: str
     jd: Optional[str] = ""
     cv: Optional[str] = ""
+    jd_id: Optional[str] = None  # JD file ID
+    cv_id: Optional[str] = None  # Resume file ID
     round_type: Optional[str] = "full"
 
 
@@ -28,12 +142,9 @@ class StartSessionResponse(BaseModel):
     user_id: str
     first_question: str
     state: Dict[str, Any]
+    cv_content: Optional[str] = None  # Include CV content in response
+    jd_content: Optional[str] = None  # Include JD content in response
 
-
-class AnswerRequest(BaseModel):
-    user_id: str
-    session_id: str
-    answer: str
 
 
 class AnswerResponse(BaseModel):
@@ -60,16 +171,42 @@ async def start_session(req: StartSessionRequest):
     """
     Start a new interview session.
     Creates a session, initializes state, and returns the first question.
+    Supports both direct text and file IDs for CV/JD.
     """
     try:
+        # Fetch CV content if cv_id is provided
+        cv_content = req.cv
+        if req.cv_id:
+            cv_data = await fetch_resume_content(req.cv_id)
+            if cv_data:
+                cv_content = cv_data
+                print(f"✅ Fetched CV content: {cv_content[:100]}...")
+            else:
+                print(f"❌ Resume with ID {req.cv_id} not found")
+                raise HTTPException(status_code=404, detail=f"Resume with ID {req.cv_id} not found")
+        
+        # Fetch JD content if jd_id is provided
+        jd_content = req.jd
+        if req.jd_id:
+            jd_data = await fetch_jd_content(req.jd_id)
+            if jd_data:
+                jd_content = jd_data
+                print(f"✅ Fetched JD content: {jd_content[:100]}...")
+            else:
+                print(f"❌ JD with ID {req.jd_id} not found")
+                raise HTTPException(status_code=404, detail=f"JD with ID {req.jd_id} not found")
+        
+        print(f"🔍 Final CV content length: {len(cv_content)}")
+        print(f"🔍 Final JD content length: {len(jd_content)}")
+        
         state = interview_manager.create_session(
             user_id=req.user_id,
             session_id=req.session_id,
             role_title=req.role_title,
             company_name=req.company_name,
             industry=req.industry,
-            jd=req.jd,
-            cv=req.cv,
+            jd=jd_content,
+            cv=cv_content,
             round_type=req.round_type,
         )
 
@@ -87,23 +224,43 @@ async def start_session(req: StartSessionRequest):
             "session_id": req.session_id,
             "first_question": first_question,
             "state": result,
+            "cv_content": cv_content if cv_content else None,
+            "jd_content": jd_content if jd_content else None,
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail={"error": str(e)})
 
 
 @router.post("/answer", response_model=AnswerResponse)
-async def submit_answer(req: AnswerRequest):
+async def submit_answer(
+    user_id: str = Form(...),
+    session_id: str = Form(...),
+    audio_file: UploadFile = File(...)
+):
     """
-    Submit an answer to the current question.
-    Evaluates response, decides follow-up/transition, and returns next question.
+    Submit a voice-only answer to the current question.
+    Converts speech to text and evaluates both content and delivery.
     """
     try:
-        # 1. Run the graph
+        if not audio_file:
+            raise HTTPException(status_code=400, detail="Audio file is required")
+        
+        # Read audio file data
+        audio_data = await audio_file.read()
+        
+        # Convert speech to text
+        from interview.speech_to_text import speech_converter
+        answer_text = speech_converter.convert_audio_to_text(audio_data)
+        
+        if not answer_text or answer_text in ["Could not understand audio", "Speech recognition service unavailable", "Audio processing failed"]:
+            raise HTTPException(status_code=400, detail=f"Speech recognition failed: {answer_text}")
+        
+        # Run the graph with voice analysis
         result = await interview_manager.step(
-            req.user_id,
-            req.session_id,
-            user_answer=req.answer,
+            user_id,
+            session_id,
+            user_answer=answer_text,
+            audio_data=audio_data
         )
 
         history = result.get("history", [])

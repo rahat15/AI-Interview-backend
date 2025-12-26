@@ -1,77 +1,50 @@
-# from sqlalchemy import create_engine
-# from sqlalchemy.ext.declarative import declarative_base
-# from sqlalchemy.orm import sessionmaker, Session
-# from sqlalchemy.pool import StaticPool
-# from contextlib import contextmanager
-# from typing import Generator
-
-# from .config import settings
-
-# # Create database engine
-# engine = create_engine(
-#     settings.database_url,
-#     pool_pre_ping=True,
-#     pool_recycle=300,
-#     echo=settings.debug,
-#     # For testing, use in-memory SQLite
-#     connect_args={"check_same_thread": False} if "sqlite" in settings.database_url else {}
-# )
-
-# # Create session factory
-# SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-# # Base class for models
-# Base = declarative_base()
-
-
-# # def get_db() -> Generator[Session, None, None]:
-# #     """Dependency to get database session"""
-# #     db = SessionLocal()
-# #     try:
-# #         yield db
-# #     finally:
-# #         db.close()
-
-
-
-# @contextmanager
-# def get_db_context() -> Generator[Session, None, None]:
-#     """Context manager for database sessions"""
-#     db = SessionLocal()
-#     try:
-#         yield db
-#     finally:
-#         db.close()
-
-
-# def create_tables():
-#     """Create all tables"""
-#     Base.metadata.create_all(bind=engine)
-
-
-# def drop_tables():
-#     """Drop all tables"""
-#     Base.metadata.drop_all(bind=engine)
-
-
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
+from motor.motor_asyncio import AsyncIOMotorClient
+from beanie import init_beanie
 from core.config import settings
+from core.models import User, Session, Artifact, Question, Answer, Score, Report, Embedding, Resume, JobDescription
 
-connect_args = {}
-if settings.database_url.startswith("sqlite"):
-    connect_args = {"check_same_thread": False}
+# Global database client
+client: AsyncIOMotorClient = None
+database = None
 
-engine = create_engine(
-    settings.database_url,
-    connect_args=connect_args
-)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
 
+async def connect_to_mongo():
+    """Create database connection"""
+    global client, database
+    client = AsyncIOMotorClient(settings.mongo_uri)
+    database = client.get_default_database()
+    
+    # Initialize Beanie with document models
+    await init_beanie(
+        database=database,
+        document_models=[
+            User,
+            Session, 
+            Artifact,
+            Question,
+            Answer,
+            Score,
+            Report,
+            Embedding,
+            Resume,
+            JobDescription
+        ]
+    )
+
+
+async def close_mongo_connection():
+    """Close database connection"""
+    global client
+    if client:
+        client.close()
+
+
+async def get_database():
+    """Get database instance"""
+    return database
+
+
+# For backward compatibility with existing code
 def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+    """Dependency to get database session - kept for compatibility"""
+    return database

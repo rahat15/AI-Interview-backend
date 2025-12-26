@@ -25,15 +25,12 @@ curl -X POST "http://34.27.237.113:8000/start" \
   }'
 ```
 
-## ▶️ Submit Answer
+## ▶️ Submit Voice Answer
 ```bash
 curl -X POST "http://34.27.237.113:8000/answer" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "user_id": "user-123",
-    "session_id": "session-123",
-    "answer": "My answer to the question"
-  }'
+  -F "user_id=user-123" \
+  -F "session_id=session-123" \
+  -F "audio_file=@/path/to/audio.wav"
 ```
 
 ## ▶️ Get Current State

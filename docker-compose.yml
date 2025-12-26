@@ -8,7 +8,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://postgres:password@postgres:5432/interview_coach
+      - MONGO_URI=mongodb+srv://karmansingharora03_db_user:8813917626%24Karman@cluster0.yyjs2ln.mongodb.net/ai-interview?retryWrites=true&w=majority&appName=Cluster0
       - REDIS_URL=redis://redis:6379/0
       - SECRET_KEY=dev-secret-key-change-in-production
       - ALGORITHM=HS256
@@ -24,28 +24,12 @@ services:
       - ./uploads:/app/uploads
       - ./samples:/app/samples
     depends_on:
-      - postgres
       - redis
     networks:
       - interview-network
     restart: unless-stopped
     env_file:
       - .env    
-
-  postgres:
-    image: pgvector/pgvector:pg16
-    environment:
-      - POSTGRES_DB=interview_coach
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=password
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./infra/docker/init.sql:/docker-entrypoint-initdb.d/init.sql
-    networks:
-      - interview-network
-    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
@@ -63,62 +47,21 @@ services:
       dockerfile: dockerfile
     command: python -m apps.worker.queue
     environment:
-      - DATABASE_URL=postgresql://postgres:password@postgres:5432/interview_coach
+      - MONGO_URI=mongodb+srv://karmansingharora03_db_user:8813917626%24Karman@cluster0.yyjs2ln.mongodb.net/ai-interview?retryWrites=true&w=majority&appName=Cluster0
       - REDIS_URL=redis://redis:6379/0
       - SECRET_KEY=dev-secret-key-change-in-production
       - EMBEDDINGS_MODEL=local
     volumes:
       - ./uploads:/app/uploads
     depends_on:
-      - postgres
       - redis
     networks:
       - interview-network
     restart: unless-stopped
 
 volumes:
-  postgres_data:
   redis_data:
 
 networks:
   interview-network:
     driver: bridge
-
-
-
-#   nginx:
-#     image: nginx:latest
-#     container_name: nginx_reverse_proxy
-#     ports:
-#       - "80:80"
-#       - "443:443"
-#     volumes:
-#       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-#       - ./certbot_data:/etc/letsencrypt 
-#       - ./certbot_www:/var/www/certbot  
-#    # shared folder for ACME challenges
-#     depends_on:
-#       - api
-#     networks:
-#       - interview-network
-#     restart: unless-stopped
-
-#   certbot:   # 👈 must be indented here, inside "services"
-#     image: certbot/certbot
-#     container_name: certbot_ssl
-#     volumes:
-#       - ./certbot_data:/etc/letsencrypt 
-#       - ./certbot_www:/var/www/certbot
-#     entrypoint: /bin/sh -c "while :; do sleep 12h & wait $${!}; certbot renew; done"
-#     networks:
-#       - interview-network
-
-# volumes:
-#   postgres_data:
-#   redis_data:
-#   certbot_data:
-#   certbot_www:
-
-# networks:
-#   interview-network:
-#     driver: bridge

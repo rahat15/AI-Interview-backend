@@ -1,7 +1,6 @@
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field, ConfigDict
 from datetime import datetime
-import uuid
 
 
 # Base schemas
@@ -26,7 +25,7 @@ class UserUpdate(BaseSchema):
 
 
 class User(UserBase):
-    id: uuid.UUID
+    id: str
     is_active: bool
     is_superuser: bool
     created_at: datetime
@@ -56,8 +55,9 @@ class SessionBase(BaseSchema):
 
 
 class SessionCreate(SessionBase):
-    cv_file_id: Optional[uuid.UUID] = Field(None, description="CV artifact ID")
-    jd_file_id: Optional[uuid.UUID] = Field(None, description="Job description artifact ID")
+    cv_file_id: Optional[str] = Field(None, description="CV artifact ID")
+    jd_file_id: Optional[str] = Field(None, description="Job description artifact ID")
+    jd_text: Optional[str] = Field(None, description="Job description text (alternative to file)")
 
 
 class SessionUpdate(BaseSchema):
@@ -68,12 +68,12 @@ class SessionUpdate(BaseSchema):
 
 
 class Session(SessionBase):
-    id: uuid.UUID
-    user_id: uuid.UUID
+    id: str
+    user_id: str
     status: str
     plan_json: Optional[Dict[str, Any]] = None
-    cv_file_id: Optional[uuid.UUID] = None
-    jd_file_id: Optional[uuid.UUID] = None
+    cv_file_id: Optional[str] = None
+    jd_file_id: Optional[str] = None
     current_question_index: int
     total_questions: int
     created_at: datetime
@@ -90,23 +90,23 @@ class QuestionBase(BaseSchema):
 
 
 class QuestionCreate(QuestionBase):
-    session_id: uuid.UUID
+    session_id: str
     meta: Optional[Dict[str, Any]] = None
     is_follow_up: bool = False
-    parent_question_id: Optional[uuid.UUID] = None
+    parent_question_id: Optional[str] = None
 
 
 class Question(QuestionBase):
-    id: uuid.UUID
-    session_id: uuid.UUID
+    id: str
+    session_id: str
     meta: Optional[Dict[str, Any]] = None
     is_follow_up: bool
-    parent_question_id: Optional[uuid.UUID] = None
+    parent_question_id: Optional[str] = None
     created_at: datetime
 
 
 class NextQuestionResponse(BaseSchema):
-    question_id: uuid.UUID
+    question_id: str
     text: str
     competency: str
     difficulty: str
@@ -120,14 +120,14 @@ class AnswerBase(BaseSchema):
 
 
 class AnswerCreate(AnswerBase):
-    question_id: uuid.UUID
-    session_id: uuid.UUID
+    question_id: str
+    session_id: str
 
 
 class Answer(AnswerBase):
-    id: uuid.UUID
-    session_id: uuid.UUID
-    question_id: uuid.UUID
+    id: str
+    session_id: str
+    question_id: str
     asr_text: Optional[str] = None
     meta: Optional[Dict[str, Any]] = None
     created_at: datetime
@@ -153,8 +153,8 @@ class ScoreDetail(BaseSchema):
 
 
 class Score(BaseSchema):
-    id: uuid.UUID
-    answer_id: uuid.UUID
+    id: str
+    answer_id: str
     rubric_json: ScoreDetail
     clarity: float
     structure: float
@@ -178,9 +178,9 @@ class ReportSummary(BaseSchema):
 
 
 class Report(BaseSchema):
-    id: uuid.UUID
-    session_id: uuid.UUID
-    json: ReportSummary
+    id: str
+    session_id: str
+    report_json: ReportSummary
     pdf_url: Optional[str] = None
     summary: str
     overall_score: float
@@ -202,7 +202,7 @@ class ArtifactCreate(ArtifactBase):
 
 
 class Artifact(ArtifactBase):
-    id: uuid.UUID
+    id: str
     text: Optional[str] = None
     meta: Optional[Dict[str, Any]] = None
     created_at: datetime
@@ -210,7 +210,7 @@ class Artifact(ArtifactBase):
 
 # Upload schemas
 class UploadResponse(BaseSchema):
-    artifact_id: uuid.UUID
+    artifact_id: str
     type: str
     path: str
     message: str = "File uploaded successfully"
