@@ -2,7 +2,7 @@
 
 ## Base URL
 ```
-http://34.27.237.113:8000/api/interview/
+http://localhost:3000/api/interview/
 ```
 
 ---
@@ -63,13 +63,20 @@ http://34.27.237.113:8000/api/interview/
 
 ### **2. POST `/api/interview/answer` - Submit Voice Answer**
 
-#### **Input (Form Data):**
+#### **Input (Form Data - AUDIO ONLY):**
 ```bash
 curl -X POST "http://34.27.237.113:8000/api/interview/answer" \
   -F "user_id=test-user-001" \
   -F "session_id=session-001" \
   -F "audio_file=@/path/to/audio.wav"
 ```
+
+**⚠️ IMPORTANT: NO TEXT INPUT ACCEPTED**
+- ✅ **Required**: `audio_file` (audio file upload)
+- ✅ **Required**: `user_id` (form field)
+- ✅ **Required**: `session_id` (form field)
+- ❌ **NOT ACCEPTED**: Any text answer fields
+- ❌ **NOT ACCEPTED**: JSON input format
 
 #### **Response:**
 ```json

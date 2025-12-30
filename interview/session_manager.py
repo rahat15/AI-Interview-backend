@@ -95,13 +95,23 @@ class AdvancedInterviewManager:
         key = f"{user_id}_{session_id}"
         state = self.sessions.get(key)
         
+        print(f"🔍 SESSION DEBUG - Key: {key}, State exists: {state is not None}")
+        
         if not state:
             raise ValueError("Session not found")
+        
+        print(f"🔍 SESSION DEBUG - User answer: '{user_answer}'")
+        print(f"🔍 SESSION DEBUG - Audio data size: {len(audio_data) if audio_data else 0} bytes")
+        print(f"🔍 SESSION DEBUG - Current history length: {len(state.history)}")
         
         # Process previous answer if provided
         if user_answer and state.history:
             last_question = state.history[-1]
+            print(f"🔍 SESSION DEBUG - Last question has answer: {last_question.get('answer') is not None}")
+            
             if last_question.get("answer") is None:
+                print(f"🔍 SESSION DEBUG - Evaluating answer for question: '{last_question['question'][:50]}...'")
+                
                 # Evaluate the answer (text + voice)
                 evaluation = self._evaluate_answer(
                     last_question["question"], 
@@ -113,6 +123,8 @@ class AdvancedInterviewManager:
                     audio_url=audio_url
                 )
                 
+                print(f"🔍 SESSION DEBUG - Evaluation result: {evaluation}")
+                
                 # Update the last question with answer and evaluation
                 last_question["answer"] = user_answer
                 last_question["evaluation"] = evaluation
@@ -123,6 +135,8 @@ class AdvancedInterviewManager:
         # Generate next question if not completed
         if not state.completed and state.question_count < state.max_questions:
             next_question = self._generate_next_question(state)
+            print(f"🔍 SESSION DEBUG - Generated next question: '{next_question[:50] if next_question else None}...'")
+            
             if next_question:
                 state.history.append({
                     "question": next_question,
@@ -137,7 +151,7 @@ class AdvancedInterviewManager:
         else:
             state.completed = True
         
-        return {
+        result = {
             "user_id": state.user_id,
             "session_id": state.session_id,
             "role_title": state.role_title,
@@ -150,6 +164,11 @@ class AdvancedInterviewManager:
             "history": state.history,
             "completed": state.completed
         }
+        
+        print(f"🔍 SESSION DEBUG - Final result history length: {len(result['history'])}")
+        print(f"🔍 SESSION DEBUG - Session completed: {result['completed']}")
+        
+        return result
     
     def _analyze_cv(self, cv_content: str) -> Dict:
         """Analyze CV content to extract key information"""
@@ -445,18 +464,39 @@ class AdvancedInterviewManager:
     
     def _evaluate_voice_answer(self, audio_data: bytes = None, audio_url: str = None) -> Dict:
         """Evaluate voice-based aspects of the answer"""
+        # Check if we have actual audio data
+        if not audio_data or len(audio_data) < 100:  # Less than 100 bytes is likely empty
+            return {
+                "voice_scores": {
+                    "fluency": 0.0,
+                    "clarity": 0.0,
+                    "confidence": 0.0,
+                    "pace": 0.0,
+                    "total": 0.0
+                },
+                "voice_metrics": {
+                    "duration": 0,
+                    "speech_rate": 0,
+                    "avg_pitch": 0,
+                    "pitch_variation": 0,
+                    "avg_energy": 0,
+                    "pause_ratio": 0,
+                    "speech_segments": 0
+                }
+            }
+        
         try:
             from interview.voice_analyzer import voice_analyzer
             return voice_analyzer.analyze_voice(audio_data=audio_data, audio_url=audio_url)
         except ImportError:
-            # Fallback if voice analyzer not available
+            # Fallback with minimal scores for no audio
             return {
                 "voice_scores": {
-                    "fluency": 1.0,
-                    "clarity": 0.8,
-                    "confidence": 0.8,
-                    "pace": 0.6,
-                    "total": 3.2
+                    "fluency": 0.5,
+                    "clarity": 0.3,
+                    "confidence": 0.3,
+                    "pace": 0.2,
+                    "total": 1.3
                 },
                 "voice_metrics": {
                     "duration": 0,
@@ -475,91 +515,143 @@ class AdvancedInterviewManager:
         text_score = text_eval["score"]  # Out of 5
         voice_score = voice_eval["voice_scores"]["total"]  # Out of 6
         
-        # Combined score out of 11, scaled to 10
-        total_score = min(10.0, ((text_score + voice_score) / 11.0) * 10.0)
+        # If no voice data, heavily penalize
+        if voice_score == 0.0:
+            # Text-only score with penalty
+            total_score = max(0.5, text_score * 0.6)  # 40% penalty for no voice
+        else:
+            # Combined score out of 11, scaled to 10
+            total_score = min(10.0, ((text_score + voice_score) / 11.0) * 10.0)
         
-        # Enhanced feedback
-        feedback_parts = [text_eval["feedback"]]
+        # Enhanced feedback based on actual performance
+        feedback_parts = []
         
-        # Add voice feedback
+        # Text feedback
+        if text_score >= 3.0:
+            feedback_parts.append("Good content quality")
+        elif text_score >= 2.0:
+            feedback_parts.append("Adequate content")
+        elif text_score >= 1.0:
+            feedback_parts.append("Content needs improvement")
+        else:
+            feedback_parts.append("Poor content relevance")
+        
+        # Voice feedback
         voice_scores = voice_eval["voice_scores"]
-        if voice_scores["fluency"] >= 1.5:
+        if voice_score == 0.0:
+            feedback_parts.append("No voice data detected")
+        elif voice_scores["fluency"] >= 1.5:
             feedback_parts.append("Good speech fluency")
         elif voice_scores["fluency"] < 1.0:
             feedback_parts.append("Could improve speech fluency")
         
-        if voice_scores["confidence"] >= 1.0:
+        if voice_score > 0 and voice_scores["confidence"] >= 1.0:
             feedback_parts.append("Confident delivery")
-        elif voice_scores["confidence"] < 0.8:
+        elif voice_score > 0 and voice_scores["confidence"] < 0.8:
             feedback_parts.append("Could sound more confident")
         
-        # Enhanced suggestions
-        suggestions = text_eval["suggestions"].copy()
+        # Enhanced suggestions based on actual issues
+        suggestions = []
         
-        # Add voice suggestions
-        if voice_scores["pace"] < 0.6:
+        # Text-based suggestions
+        if text_score < 2.0:
+            suggestions.append("Answer the specific question asked")
+        if text_eval["breakdown"]["examples"] < 0.3:
+            suggestions.append("Include concrete examples with measurable results")
+        if text_eval["breakdown"]["depth"] < 0.5:
+            suggestions.append("Provide more specific details about your experience")
+        
+        # Voice-based suggestions
+        if voice_score == 0.0:
+            suggestions.append("Ensure audio is properly recorded and transmitted")
+        elif voice_scores["pace"] < 0.6:
             suggestions.append("Adjust speaking pace - aim for 140-170 words per minute")
-        if voice_scores["clarity"] < 1.0:
+        elif voice_scores["clarity"] < 1.0:
             suggestions.append("Speak more clearly and maintain consistent volume")
-        if voice_scores["fluency"] < 1.2:
-            suggestions.append("Reduce pauses and filler words for better fluency")
+        
+        # Generic answer detection
+        if "passionate software engineer" in text_eval["suggestions"]:
+            suggestions.insert(0, "Avoid generic responses - tailor your answer to the specific question")
         
         return {
             "total_score": round(total_score, 1),
-            "feedback": " | ".join(feedback_parts),
+            "feedback": " | ".join(feedback_parts) if feedback_parts else "No meaningful response detected",
             "suggestions": suggestions[:4]  # Limit to top 4
         }
     
     def _score_relevance(self, question_lower: str, answer_lower: str, cv_analysis: Dict) -> float:
         """Score how well the answer addresses the question (0-2 points)"""
-        score = 0.5  # Base score for attempting to answer
+        
+        # Check for generic/repeated answers - major penalty
+        generic_answers = [
+            "i am a software engineer with experience in backend development and i am passionate about building scalable applications",
+            "i am a passionate software engineer",
+            "i have experience in backend development"
+        ]
+        
+        if any(generic in answer_lower for generic in generic_answers):
+            # If it's a generic answer, check if it even remotely fits the question
+            if "tell me about yourself" in question_lower:
+                return 0.8  # Somewhat relevant but generic
+            else:
+                return 0.1  # Completely irrelevant generic answer
+        
+        score = 0.3  # Base score for attempting to answer
         
         # Check for direct question addressing
         if "tell me about yourself" in question_lower:
             if any(word in answer_lower for word in ["experience", "background", "engineer", "developer"]):
-                score += 0.5
-            if any(word in answer_lower for word in ["passionate", "specialize", "focus"]):
-                score += 0.3
-        
-        elif "challenging project" in question_lower or "technical decision" in question_lower:
-            if any(word in answer_lower for word in ["project", "built", "developed", "implemented"]):
                 score += 0.7
-            if any(word in answer_lower for word in ["challenge", "problem", "solution", "decision"]):
+            if any(word in answer_lower for word in ["passionate", "specialize", "focus"]):
                 score += 0.5
+            if "role" in answer_lower or "position" in answer_lower:
+                score += 0.5
+        
+        elif "technical challenge" in question_lower or "complex" in question_lower:
+            if any(word in answer_lower for word in ["challenge", "problem", "difficult", "complex"]):
+                score += 1.0
+            if any(word in answer_lower for word in ["solution", "solved", "approach", "implemented"]):
+                score += 0.7
             else:
-                score -= 0.3  # Penalty for not addressing the challenge aspect
+                score -= 1.0  # Big penalty for not addressing the challenge
         
         elif "learn something new" in question_lower:
-            if any(word in answer_lower for word in ["learn", "new", "approach", "research"]):
-                score += 0.8
+            if any(word in answer_lower for word in ["learn", "new", "study", "research"]):
+                score += 1.2
             else:
-                score -= 0.4  # Big penalty for not addressing learning
+                score -= 0.8  # Big penalty for not addressing learning
+        
+        elif "professional growth" in question_lower or "growth moment" in question_lower:
+            if any(word in answer_lower for word in ["growth", "learn", "develop", "improve", "experience"]):
+                score += 1.0
+            else:
+                score -= 0.8
         
         elif "align" in question_lower or "background" in question_lower:
-            if any(word in answer_lower for word in ["experience", "background", "skills", "match"]):
-                score += 0.6
+            if any(word in answer_lower for word in ["experience", "background", "skills", "match", "fit"]):
+                score += 0.8
         
         elif "team" in question_lower or "lead" in question_lower:
             if any(word in answer_lower for word in ["team", "lead", "collaborate", "manage"]):
-                score += 0.8
+                score += 1.0
             else:
-                score -= 0.5  # Penalty for not addressing team aspect
+                score -= 0.7  # Penalty for not addressing team aspect
         
         elif "problem" in question_lower and "never solved" in question_lower:
             if any(word in answer_lower for word in ["approach", "research", "break down", "analyze"]):
-                score += 0.7
+                score += 0.9
         
         elif "company" in question_lower or "working at" in question_lower:
             if any(word in answer_lower for word in ["company", "team", "contribute", "mission"]):
-                score += 0.6
+                score += 0.8
         
         elif "questions" in question_lower and "for me" in question_lower:
             if "?" in answer_lower or any(word in answer_lower for word in ["what", "how", "when", "why"]):
-                score += 0.8
+                score += 1.0
             else:
-                score -= 0.3  # Should ask questions
+                score -= 0.5  # Should ask questions
         
-        return min(2.0, score)
+        return max(0.0, min(2.0, score))
     
     def _score_depth(self, answer: str, answer_lower: str) -> float:
         """Score the depth and detail of the answer (0-1.5 points)"""

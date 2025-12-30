@@ -104,13 +104,16 @@ def create_app() -> FastAPI:
 
     # Include all routers with proper prefixes and tags
     app.include_router(overview_router, tags=["API Overview"])
-    app.include_router(cv_router, prefix="/api", tags=["CV Evaluation"])
-    app.include_router(upload_router, prefix="/api", tags=["File Upload & Processing"])
-    app.include_router(evaluation_router, prefix="/api", tags=["Direct Evaluation"])
-    app.include_router(sessions_router, prefix="/api", tags=["Session Management"])
-    app.include_router(uploads_router, prefix="/api", tags=["Artifact Management"])
-    app.include_router(jd_router, prefix="/api", tags=["Job Description Management"])
+    app.include_router(cv_router, prefix="/v1", tags=["CV Evaluation"])
+    app.include_router(upload_router, prefix="/upload", tags=["File Upload & Processing"])
+    app.include_router(evaluation_router, prefix="/evaluation", tags=["Direct Evaluation"])
+    app.include_router(sessions_router, prefix="/sessions", tags=["Session Management"])
+    app.include_router(uploads_router, prefix="/uploads", tags=["Artifact Management"])
+    app.include_router(jd_router, prefix="/v1", tags=["Job Description Management"])
     app.include_router(interview_router, prefix="/api/interview", tags=["Live Interview"])
+    
+    # Add interview routes without prefix for backward compatibility
+    app.include_router(interview_router, tags=["Interview - No Prefix"])
 
     return app
 

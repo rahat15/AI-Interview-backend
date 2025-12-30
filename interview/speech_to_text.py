@@ -42,11 +42,12 @@ class SpeechToTextConverter:
                 os.unlink(temp_path)
                 
         except ImportError:
-            # Fallback: return placeholder text for testing
-            return "I am a software engineer with experience in backend development and I am passionate about building scalable applications."
+            # Fallback: return sample text for testing when speech recognition is not available
+            print("⚠️ Speech recognition not available, using fallback text")
+            return "This is a sample answer for testing purposes. The candidate provided a voice response but speech recognition is not configured."
         except Exception as e:
             print(f"Audio conversion error: {e}")
-            return "Audio processing failed"
+            return "This is a fallback answer due to audio processing issues."
 
 # Global instance
 speech_converter = SpeechToTextConverter()

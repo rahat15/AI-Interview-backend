@@ -2,7 +2,7 @@
 
 **Base URL:**  
 ```
-http://34.27.237.113:8000
+http://localhost:3000
 ```
 
 ---
@@ -11,7 +11,7 @@ http://34.27.237.113:8000
 
 ## ▶️ Start Interview Session
 ```bash
-curl -X POST "http://34.27.237.113:8000/start" \
+curl -X POST "http://localhost:3000/start" \
   -H "Content-Type: application/json" \
   -d '{
     "user_id": "user-123",
@@ -25,27 +25,29 @@ curl -X POST "http://34.27.237.113:8000/start" \
   }'
 ```
 
-## ▶️ Submit Voice Answer
+## ▶️ Submit Voice Answer (AUDIO ONLY)
 ```bash
-curl -X POST "http://34.27.237.113:8000/answer" \
+curl -X POST "http://localhost:3000/answer" \
   -F "user_id=user-123" \
   -F "session_id=session-123" \
   -F "audio_file=@/path/to/audio.wav"
 ```
 
+**⚠️ Note: Only audio files accepted - no text input**
+
 ## ▶️ Get Current State
 ```bash
-curl "http://34.27.237.113:8000/state/user-123/session-123"
+curl "http://localhost:3000/state/user-123/session-123"
 ```
 
 ## ▶️ Get Final Report
 ```bash
-curl "http://34.27.237.113:8000/report/user-123/session-123"
+curl "http://localhost:3000/report/user-123/session-123"
 ```
 
 ## ▶️ List All Interview Sessions (for a user)
 ```bash
-curl "http://34.27.237.113:8000/sessions/user-123"
+curl "http://localhost:3000/sessions/user-123"
 ```
 
 ---

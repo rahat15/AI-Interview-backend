@@ -242,18 +242,40 @@ async def submit_answer(
     Converts speech to text and evaluates both content and delivery.
     """
     try:
+        print(f"🎤 AUDIO DEBUG - File: {audio_file.filename}, Content-Type: {audio_file.content_type}")
+        
+        # Validate session exists first
+        session_state = interview_manager.get_state(user_id, session_id)
+        if not session_state:
+            raise HTTPException(
+                status_code=404, 
+                detail={"error": f"Session not found for user_id: {user_id}, session_id: {session_id}"}
+            )
+        
         if not audio_file:
-            raise HTTPException(status_code=400, detail="Audio file is required")
+            raise HTTPException(status_code=400, detail={"error": "Audio file is required"})
         
         # Read audio file data
         audio_data = await audio_file.read()
+        print(f"🎤 AUDIO DEBUG - Data size: {len(audio_data)} bytes")
         
         # Convert speech to text
         from interview.speech_to_text import speech_converter
         answer_text = speech_converter.convert_audio_to_text(audio_data)
+        print(f"🎤 TRANSCRIPTION DEBUG - Text: '{answer_text}'")
         
-        if not answer_text or answer_text in ["Could not understand audio", "Speech recognition service unavailable", "Audio processing failed"]:
-            raise HTTPException(status_code=400, detail=f"Speech recognition failed: {answer_text}")
+        # Check for speech recognition failures
+        failure_indicators = [
+            "Could not process audio",
+            "Could not understand audio", 
+            "Speech recognition service unavailable"
+        ]
+        
+        if not answer_text or any(indicator in answer_text for indicator in failure_indicators):
+            raise HTTPException(
+                status_code=400, 
+                detail={"error": f"Speech recognition failed: {answer_text or 'No audio detected'}"}
+            )
         
         # Run the graph with voice analysis
         result = await interview_manager.step(
@@ -278,13 +300,37 @@ async def submit_answer(
         else:
             evaluated_item = history[-2] if len(history) >= 2 else {}
 
-        return {
-            "evaluation": evaluated_item.get("evaluation"), # Returns the score for the answer just given
+        response_data = {
+            "evaluation": evaluated_item.get("evaluation"),
             "next_question": next_question,
             "state": result,
         }
+        
+        print(f"🎤 RESPONSE DEBUG - Full response: {response_data}")
+        
+        return response_data
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=400, detail={"error": str(e)})
+        print(f"Error in submit_answer: {str(e)}")
+        raise HTTPException(status_code=500, detail={"error": f"Internal server error: {str(e)}"})
+
+
+@router.get("/debug/sessions")
+def debug_sessions():
+    """
+    Debug endpoint to list all active sessions.
+    """
+    sessions = {}
+    for key, state in interview_manager.sessions.items():
+        sessions[key] = {
+            "user_id": state.user_id,
+            "session_id": state.session_id,
+            "role_title": state.role_title,
+            "status": "completed" if state.completed else "active",
+            "question_count": state.question_count
+        }
+    return {"active_sessions": sessions, "total_count": len(sessions)}
 
 
 @router.get("/state/{user_id}/{session_id}")

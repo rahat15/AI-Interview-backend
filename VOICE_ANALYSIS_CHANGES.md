@@ -279,7 +279,7 @@ soundfile==0.12.1
 
 ```bash
 # 1. Start Session with Resume and JD IDs
-curl -X POST "http://34.27.237.113:8000/start" \
+curl -X POST "http://localhost:3000/api/interview/start" \
   -H "Content-Type: application/json" \
   -d '{
     "user_id": "test-user-001",
@@ -293,7 +293,7 @@ curl -X POST "http://34.27.237.113:8000/start" \
   }'
 
 # Alternative: Start Session with direct text (fallback)
-curl -X POST "http://34.27.237.113:8000/start" \
+curl -X POST "http://localhost:3000/api/interview/start" \
   -H "Content-Type: application/json" \
   -d '{
     "user_id": "test-user-001",
@@ -307,13 +307,13 @@ curl -X POST "http://34.27.237.113:8000/start" \
   }'
 
 # 2. Submit Voice Answer
-curl -X POST "http://34.27.237.113:8000/answer" \
+curl -X POST "http://localhost:3000/api/interview/answer" \
   -F "user_id=test-user-001" \
   -F "session_id=session-001" \
   -F "audio_file=@test-audio.wav"
 
 # 3. Check Results
-curl "http://34.27.237.113:8000/state/test-user-001/session-001"
+curl "http://localhost:3000/api/interview/state/test-user-001/session-001"
 ```
 
 ---
