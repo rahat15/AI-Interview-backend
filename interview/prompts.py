@@ -122,7 +122,7 @@ Ask ONLY closing questions.
 
 Focus on:
 - candidate questions
-- expectations for the role
+- expectations for the role 
 - next steps or timelines
 - anything the candidate wants to clarify
 

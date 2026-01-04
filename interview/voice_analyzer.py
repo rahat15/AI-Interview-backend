@@ -243,16 +243,18 @@ class VoiceAnalyzer:
         score = 0.3  # Base score
         
         # Optimal pace
-        if 140 <= speech_rate <= 170:
+        if 140 <= speech_rate <= 180:
             score += 0.4
-        elif 120 <= speech_rate <= 190:
-            score += 0.3
-        
-        # Duration appropriateness
-        if 15 <= duration <= 120:  # 15 seconds to 2 minutes
-            score += 0.3
-        elif 10 <= duration <= 180:
+        elif 120 <= speech_rate <= 200:
             score += 0.2
+        elif speech_rate < 100 or speech_rate > 220:
+            score -= 0.2
+        
+        # Duration consideration
+        if duration > 8:  # Good length answer
+            score += 0.3
+        elif duration > 4:
+            score += 0.1
         
         return max(0, min(1.0, score))
     
@@ -261,21 +263,18 @@ class VoiceAnalyzer:
         return {
             "voice_scores": {
                 "fluency": 1.0,
-                "clarity": 0.8,
-                "confidence": 0.8,
-                "pace": 0.6,
-                "total": 3.2
+                "clarity": 0.5,
+                "confidence": 0.5,
+                "pace": 0.5,
+                "total": 2.5
             },
             "voice_metrics": {
-                "duration": 0,
-                "speech_rate": 0,
-                "avg_pitch": 0,
-                "pitch_variation": 0,
-                "avg_energy": 0,
-                "pause_ratio": 0,
+                "duration": 0.0,
+                "speech_rate": 0.0,
+                "avg_pitch": 0.0,
+                "pitch_variation": 0.0,
+                "avg_energy": 0.0,
+                "pause_ratio": 1.0,
                 "speech_segments": 0
             }
         }
-
-# Global instance
-voice_analyzer = VoiceAnalyzer()
