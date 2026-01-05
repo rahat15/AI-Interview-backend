@@ -12,14 +12,15 @@ Improvements:
 
 from __future__ import annotations
 
+import io
 import os
-import tempfile
 import logging
 from typing import Dict, Optional, Any
 
 import librosa
 import numpy as np
 import requests
+import soundfile as sf
 
 
 logger = logging.getLogger(__name__)
@@ -61,24 +62,25 @@ class VoiceAnalyzer:
             if not audio_data:
                 return self._fail("no_audio_data")
 
-            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
-                temp_file.write(audio_data)
-                temp_path = temp_file.name
+            # -------- IN-MEMORY AUDIO DECODE (NO TEMP FILES) --------
+            audio_buffer = io.BytesIO(audio_data)
+            y, sr = sf.read(audio_buffer, dtype="float32")
 
-            try:
-                y, sr = librosa.load(temp_path, sr=self.sample_rate, mono=True)
-                if y is None or len(y) == 0:
-                    return self._fail("empty_audio_after_decode")
+            if y is None or len(y) == 0:
+                return self._fail("empty_audio_after_decode")
 
-                analysis = self._analyze_audio_features(y, sr, transcript)
-                analysis["analysis_ok"] = True
-                return analysis
+            # Convert to mono if needed
+            if y.ndim > 1:
+                y = np.mean(y, axis=1)
 
-            finally:
-                try:
-                    os.unlink(temp_path)
-                except Exception:
-                    pass
+            # Resample if needed
+            if sr != self.sample_rate:
+                y = librosa.resample(y, orig_sr=sr, target_sr=self.sample_rate)
+                sr = self.sample_rate
+
+            analysis = self._analyze_audio_features(y, sr, transcript)
+            analysis["analysis_ok"] = True
+            return analysis
 
         except Exception as e:
             logger.exception("Voice analysis error: %s", e)
@@ -134,7 +136,7 @@ class VoiceAnalyzer:
                 "pause_ratio": round(pause_ratio, 3),
                 "speech_segments": speech_segments,
                 "speech_duration": round(speech_duration, 2),
-                "wpm_source": "transcript" if transcript else "estimated",
+                "wpm_source": "transcript" if transcript and transcript.strip() else "estimated",
             },
         }
 
