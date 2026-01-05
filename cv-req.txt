@@ -20,6 +20,9 @@ langchain-core==0.1.52
 redis==5.0.1
 sqlalchemy==2.0.29
 pgvector==0.2.4
+motor
+beanie
+pymongo
 
 # Auth
 python-jose[cryptography]==3.3.0
@@ -32,20 +35,13 @@ python-multipart==0.0.9
 pdfplumber==0.11.0
 python-docx==1.1.2
 pytesseract==0.3.13
-Pillow==10.4.0    
+pillow==10.4.0
 beautifulsoup4==4.12.3
 
-
-
-# Additional dependencies discovered by code scan
-# Note: some packages are optional or heavy (e.g., torch, openai-whisper).
-# Install system dependencies where needed, e.g., ffmpeg for whisper and graphviz system package for graph rendering.
-numpy>=1.24.0
-librosa
-openai-whisper
-motor
-beanie
-pymongo
-soundfile
-audioread
-scipy
+# Audio / ML (CPU-only)
+numpy==2.3.3
+librosa==0.11.0
+scipy==1.16.3
+soundfile==0.13.1
+audioread==3.1.0
+openai-whisper==20250625
