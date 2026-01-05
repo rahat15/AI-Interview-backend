@@ -46,8 +46,6 @@ openai-whisper
 motor
 beanie
 pymongo
-sentence-transformers
 soundfile
 audioread
 scipy
-transformers
