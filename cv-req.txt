@@ -35,6 +35,19 @@ pytesseract==0.3.13
 Pillow==10.4.0    
 beautifulsoup4==4.12.3
 
-# Testing
-pytest==7.4.4
-rq
+
+
+# Additional dependencies discovered by code scan
+# Note: some packages are optional or heavy (e.g., torch, openai-whisper).
+# Install system dependencies where needed, e.g., ffmpeg for whisper and graphviz system package for graph rendering.
+numpy>=1.24.0
+librosa
+openai-whisper
+motor
+beanie
+pymongo
+sentence-transformers
+soundfile
+audioread
+scipy
+transformers

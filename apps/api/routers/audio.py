@@ -33,8 +33,11 @@ async def submit_audio_answer(
         transcribed_text = speech_converter.convert_audio_to_text(audio_data)
         
         # Analyze voice characteristics
-        voice_analysis = voice_analyzer.analyze_voice(audio_data=audio_data)
-        
+        voice_analysis = voice_analyzer.analyze_voice(
+            audio_data=audio_data,
+            transcript=transcribed_text
+        )
+
         # Create answer record
         answer_data = {
             "id": str(uuid.uuid4()),
@@ -76,7 +79,11 @@ async def analyze_audio_only(
         transcribed_text = speech_converter.convert_audio_to_text(audio_data)
         
         # Analyze voice characteristics
-        voice_analysis = voice_analyzer.analyze_voice(audio_data=audio_data)
+        voice_analysis = voice_analyzer.analyze_voice(
+            audio_data=audio_data,
+            transcript=transcribed_text
+        )
+
         
         return {
             "transcribed_text": transcribed_text,
