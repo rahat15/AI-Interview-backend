@@ -2,7 +2,7 @@
 
 **Base URL:**  
 ```
-http://localhost:3000
+http://localhost:8080
 ```
 
 ---
@@ -11,7 +11,7 @@ http://localhost:3000
 
 ## ▶️ Start Interview Session
 ```bash
-curl -X POST "http://localhost:3000/start" \
+curl -X POST "http://localhost:8080/start" \
   -H "Content-Type: application/json" \
   -d '{
     "user_id": "user-123",
@@ -27,7 +27,7 @@ curl -X POST "http://localhost:3000/start" \
 
 ## ▶️ Submit Voice Answer (AUDIO ONLY)
 ```bash
-curl -X POST "http://localhost:3000/answer" \
+curl -X POST "http://localhost:8080/answer" \
   -F "user_id=user-123" \
   -F "session_id=session-123" \
   -F "audio_file=@/path/to/audio.wav"
@@ -37,17 +37,17 @@ curl -X POST "http://localhost:3000/answer" \
 
 ## ▶️ Get Current State
 ```bash
-curl "http://localhost:3000/state/user-123/session-123"
+curl "http://localhost:8080/state/user-123/session-123"
 ```
 
 ## ▶️ Get Final Report
 ```bash
-curl "http://localhost:3000/report/user-123/session-123"
+curl "http://localhost:8080/report/user-123/session-123"
 ```
 
 ## ▶️ List All Interview Sessions (for a user)
 ```bash
-curl "http://localhost:3000/sessions/user-123"
+curl "http://localhost:8080/sessions/user-123"
 ```
 
 ---
@@ -56,7 +56,7 @@ curl "http://localhost:3000/sessions/user-123"
 
 ## ▶️ Score CV Quality
 ```bash
-curl -X POST "http://34.27.237.113:8000/v1/cv/score" \
+curl -X POST "http://localhost:8080/v1/cv/score" \
   -H "Content-Type: application/json" \
   -d '{
     "cv_text": "<raw resume text>"
@@ -65,7 +65,7 @@ curl -X POST "http://34.27.237.113:8000/v1/cv/score" \
 
 ## ▶️ Fit-Index (CV + JD)
 ```bash
-curl -X POST "http://34.27.237.113:8000/v1/cv/fit-index" \
+curl -X POST "http://localhost:8080/v1/cv/fit-index" \
   -H "Content-Type: application/json" \
   -d '{
     "cv_text": "<resume text>",
@@ -75,7 +75,7 @@ curl -X POST "http://34.27.237.113:8000/v1/cv/fit-index" \
 
 ## ▶️ Generate CV Improvement Suggestions
 ```bash
-curl -X POST "http://34.27.237.113:8000/v1/cv/improvement" \
+curl -X POST "http://localhost:8080/v1/cv/improvement" \
   -H "Content-Type: application/json" \
   -d '{
     "cv_text": "<resume text>",
@@ -89,14 +89,14 @@ curl -X POST "http://34.27.237.113:8000/v1/cv/improvement" \
 
 ## ▶️ Upload CV for Evaluation
 ```bash
-curl -X POST "http://34.27.237.113:8000/upload/cv_evaluate" \
+curl -X POST "http://localhost:8080/upload/cv_evaluate" \
   -F "file=@/path/to/resume.pdf" \
   -F "jd_text=Optional job description text"
 ```
 
 ## ▶️ Upload CV for Improvements
 ```bash
-curl -X POST "http://34.27.237.113:8000/upload/cv_improvement" \
+curl -X POST "http://localhost:8080/upload/cv_improvement" \
   -F "file=@/path/to/resume.pdf" \
   -F "jd_text=Optional job description text"
 ```
@@ -107,24 +107,24 @@ curl -X POST "http://34.27.237.113:8000/upload/cv_improvement" \
 
 ## ▶️ Upload CV File
 ```bash
-curl -X POST "http://34.27.237.113:8000/uploads/cv" \
+curl -X POST "http://localhost:8080/uploads/cv" \
   -F "file=@/path/to/resume.pdf"
 ```
 
 ## ▶️ Upload JD File
 ```bash
-curl -X POST "http://34.27.237.113:8000/uploads/jd" \
+curl -X POST "http://localhost:8080/uploads/jd" \
   -F "file=@/path/to/jd.pdf"
 ```
 
 ## ▶️ Get Artifact Info
 ```bash
-curl "http://34.27.237.113:8000/uploads/<artifact_id>"
+curl "http://localhost:8080/uploads/<artifact_id>"
 ```
 
 ## ▶️ Delete Artifact
 ```bash
-curl -X DELETE "http://34.27.237.113:8000/uploads/<artifact_id>"
+curl -X DELETE "http://localhost:8080/uploads/<artifact_id>"
 ```
 
 ---
@@ -133,7 +133,7 @@ curl -X DELETE "http://34.27.237.113:8000/uploads/<artifact_id>"
 
 ## ▶️ Create Session (Mock)
 ```bash
-curl -X POST "http://34.27.237.113:8000/sessions/" \
+curl -X POST "http://localhost:8080/sessions/" \
   -H "Content-Type: application/json" \
   -d '{
     "role": "Backend",
@@ -146,22 +146,22 @@ curl -X POST "http://34.27.237.113:8000/sessions/" \
 
 ## ▶️ Get a Session
 ```bash
-curl "http://34.27.237.113:8000/sessions/<session_id>"
+curl "http://localhost:8080/sessions/<session_id>"
 ```
 
 ## ▶️ List Sessions
 ```bash
-curl "http://34.27.237.113:8000/sessions/"
+curl "http://localhost:8080/sessions/"
 ```
 
 ## ▶️ Get Next Question
 ```bash
-curl "http://34.27.237.113:8000/sessions/<session_id>/next-question"
+curl "http://localhost:8080/sessions/<session_id>/next-question"
 ```
 
 ## ▶️ Submit Answer (Mock)
 ```bash
-curl -X POST "http://34.27.237.113:8000/sessions/<session_id>/answer" \
+curl -X POST "http://localhost:8080/sessions/<session_id>/answer" \
   -H "Content-Type: application/json" \
   -d '{
     "question_id": "<id>",
@@ -172,19 +172,19 @@ curl -X POST "http://34.27.237.113:8000/sessions/<session_id>/answer" \
 
 ## ▶️ Get Session Report
 ```bash
-curl "http://34.27.237.113:8000/sessions/<session_id>/report"
+curl "http://localhost:8080/sessions/<session_id>/report"
 ```
 
 ## ▶️ Delete Session
 ```bash
-curl -X DELETE "http://34.27.237.113:8000/sessions/<session_id>"
+curl -X DELETE "http://localhost:8080/sessions/<session_id>"
 ```
 
 ---
 
 # 📝 CV vs JD Evaluation (`/evaluation/cv`)
 ```bash
-curl -X POST "http://34.27.237.113:8000/evaluation/cv" \
+curl -X POST "http://localhost:8080/evaluation/cv" \
   -H "Content-Type: application/json" \
   -d '{
     "cv_text": "<resume text>",
@@ -205,7 +205,7 @@ $body = @'
 }
 '@
 
-curl -X POST http://34.27.237.113:8000/v1/cv/fit-index `
+curl -X POST http://localhost:8080/v1/cv/fit-index `
   -H "Content-Type: application/json" `
   -d $body
 ```
@@ -213,7 +213,7 @@ curl -X POST http://34.27.237.113:8000/v1/cv/fit-index `
 ### Swagger Docs
 Visit the interactive UI:  
 ```
-http://34.27.237.113:8000/docs
+http://localhost:8080/docs
 ```
 
 ---
