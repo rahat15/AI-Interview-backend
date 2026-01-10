@@ -9,7 +9,7 @@ services:
       - "8000:8000"
     environment:
       - MONGO_URI=mongodb+srv://karmansingharora03_db_user:8813917626%24Karman@cluster0.yyjs2ln.mongodb.net/ai-interview?retryWrites=true&w=majority&appName=Cluster0
-      - REDIS_URL=redis://redis:6379/0
+      #- REDIS_URL=redis://redis:6379/0
       - SECRET_KEY=dev-secret-key-change-in-production
       - ALGORITHM=HS256
       - ACCESS_TOKEN_EXPIRE_MINUTES=30
@@ -31,36 +31,36 @@ services:
     env_file:
       - .env    
 
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    networks:
-      - interview-network
-    restart: unless-stopped
+#   redis:
+#     image: redis:7-alpine
+#     ports:
+#       - "6379:6379"
+#     volumes:
+#       - redis_data:/data
+#     networks:
+#       - interview-network
+#     restart: unless-stopped
 
-  worker:
-    build:
-      context: .
-      dockerfile: dockerfile
-    command: python -m apps.worker.queue
-    environment:
-      - MONGO_URI=mongodb+srv://karmansingharora03_db_user:8813917626%24Karman@cluster0.yyjs2ln.mongodb.net/ai-interview?retryWrites=true&w=majority&appName=Cluster0
-      - REDIS_URL=redis://redis:6379/0
-      - SECRET_KEY=dev-secret-key-change-in-production
-      - EMBEDDINGS_MODEL=local
-    volumes:
-      - ./uploads:/app/uploads
-    depends_on:
-      - redis
-    networks:
-      - interview-network
-    restart: unless-stopped
+#   worker:
+#     build:
+#       context: .
+#       dockerfile: dockerfile
+#     command: python -m apps.worker.queue
+#     environment:
+#       - MONGO_URI=mongodb+srv://karmansingharora03_db_user:8813917626%24Karman@cluster0.yyjs2ln.mongodb.net/ai-interview?retryWrites=true&w=majority&appName=Cluster0
+#       - REDIS_URL=redis://redis:6379/0
+#       - SECRET_KEY=dev-secret-key-change-in-production
+#       - EMBEDDINGS_MODEL=local
+#     volumes:
+#       - ./uploads:/app/uploads
+#     depends_on:
+#       - redis
+#     networks:
+#       - interview-network
+#     restart: unless-stopped
 
-volumes:
-  redis_data:
+# volumes:
+#   redis_data:
 
 networks:
   interview-network:
