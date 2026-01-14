@@ -242,7 +242,7 @@ class SpeechToTextConverter:
 
         try:
             response = self.client.audio.transcriptions.create(
-                file=("audio.wav", audio_data),
+                file=("audio", audio_data),
                 model=self.model_name,
                 language=language,
                 response_format="verbose_json",

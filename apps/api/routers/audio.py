@@ -30,7 +30,11 @@ async def submit_audio_answer(
         audio_data = await audio_file.read()
         
         # Convert speech to text
-        transcribed_text = speech_converter.convert_audio_to_text(audio_data)
+        transcribed_text = speech_converter.convert_audio_to_text(
+            audio_data=audio_data,
+            filename=audio_file.filename
+        )
+
         
         # Analyze voice characteristics
         voice_analysis = voice_analyzer.analyze_voice(
@@ -76,7 +80,11 @@ async def analyze_audio_only(
         audio_data = await audio_file.read()
         
         # Convert speech to text
-        transcribed_text = speech_converter.convert_audio_to_text(audio_data)
+        transcribed_text = speech_converter.convert_audio_to_text(
+            audio_data=audio_data,
+            filename=audio_file.filename
+        )
+
         
         # Analyze voice characteristics
         voice_analysis = voice_analyzer.analyze_voice(
