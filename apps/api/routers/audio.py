@@ -37,7 +37,6 @@ async def submit_audio_answer(
         # Convert speech to text
         transcribed_text = speech_converter.convert_audio_to_text(
             audio_data=audio_data,
-            filename=audio_file.filename
         )
 
         # Delegate to interview manager (it will perform technical LLM eval and voice analysis)
@@ -78,7 +77,6 @@ async def analyze_audio_only(
         # Convert speech to text
         transcribed_text = speech_converter.convert_audio_to_text(
             audio_data=audio_data,
-            filename=audio_file.filename
         )
 
         
