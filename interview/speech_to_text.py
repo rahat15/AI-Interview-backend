@@ -224,43 +224,39 @@ class SpeechToTextConverter:
             self.model_name
         )
 
-    def convert_audio_to_text(
-    self,
-    audio_data: bytes,
-    language: Optional[str] = None,
-) -> Optional[str]:
-    if not audio_data:
-        logger.warning("No audio data received for transcription")
-        return None
+    def convert_audio_to_text(self, audio_data: bytes, language: Optional[str] = None, ) -> Optional[str]:
+        if not audio_data:
+            logger.warning("No audio data received for transcription")
+            return None
 
-    try:
-        response = self.client.audio.transcriptions.create(
-            file=("audio.wav", audio_data),   # ✅ FIX
-            model=self.model_name,
-            language=language,
-            response_format="verbose_json",
-        )
+        try:
+            response = self.client.audio.transcriptions.create(
+                file=("audio.wav", audio_data),   # ✅ FIX
+                model=self.model_name,
+                language=language,
+                response_format="verbose_json",
+            )
 
-        logger.info("ASR response type: %s", type(response))
+            logger.info("ASR response type: %s", type(response))
 
-        text = None
+            text = None
 
-        if isinstance(response, dict):
-            text = response.get("text")
+            if isinstance(response, dict):
+                text = response.get("text")
 
-            if not text and "segments" in response:
-                text = " ".join(
-                    seg.get("text", "") for seg in response.get("segments", [])
-                )
-        else:
-            text = getattr(response, "text", None)
+                if not text and "segments" in response:
+                    text = " ".join(
+                        seg.get("text", "") for seg in response.get("segments", [])
+                    )
+            else:
+                text = getattr(response, "text", None)
 
-        text = (text or "").strip()
-        return text if text else None
+            text = (text or "").strip()
+            return text if text else None
 
-    except Exception:
-        logger.exception("Groq transcription failed")
-        return None
+        except Exception:
+            logger.exception("Groq transcription failed")
+            return None
 
 
 
