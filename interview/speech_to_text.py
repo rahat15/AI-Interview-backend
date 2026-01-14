@@ -150,13 +150,16 @@ Behavior:
 - Returns transcript string on success
 - Returns None on failure
 """
-
 from __future__ import annotations
 
+import os
 import logging
 from typing import Optional
 
-from groq import Groq
+try:
+    from groq import Groq
+except ImportError as e:
+    Groq = None
 
 
 logger = logging.getLogger(__name__)
@@ -164,39 +167,77 @@ if not logger.handlers:
     logging.basicConfig(level=logging.INFO)
 
 
+def create_groq_client() -> "Groq":
+    """
+    Safely create a Groq client across SDK versions.
+
+    IMPORTANT:
+    - Do NOT pass proxies, timeout, or extra kwargs
+    - Groq SDK auto-reads proxy settings from environment
+    """
+    if not Groq:
+        raise RuntimeError("Groq SDK not installed. Run: pip install groq")
+
+    api_key = os.getenv("GROQ_API_KEY")
+
+    try:
+        if api_key:
+            try:
+                # Preferred path (newer SDKs)
+                return Groq(api_key=api_key)
+            except TypeError:
+                # Fallback for older SDKs
+                client = Groq()
+                if hasattr(client, "api_key"):
+                    client.api_key = api_key
+                return client
+
+        # Final fallback (env-based auth)
+        return Groq()
+
+    except Exception as e:
+        logger.error("❌ Failed to initialize Groq client", exc_info=True)
+        raise RuntimeError("Groq client initialization failed") from e
+
+
 class SpeechToTextConverter:
     """
     Groq-hosted Whisper ASR wrapper.
 
-    Notes:
-    - No local ML models
+    Characteristics:
+    - No local ML
     - No temp files
     - No ffmpeg
-    - OpenAI-compatible audio transcription API
+    - No proxy injection
+    - Safe across Groq SDK versions
     """
 
-    def __init__(self, model_name: str | None = None):
-        # Groq-supported Whisper models:
+    def __init__(self, model_name: Optional[str] = None):
+        # Supported Groq Whisper models:
         # - whisper-large-v3
-        # - whisper-large-v3-turbo (faster, recommended)
-        self.model_name = "whisper-large-v3"
-        self.client = Groq()
+        # - whisper-large-v3-turbo (recommended if available)
+        self.model_name = model_name or "whisper-large-v3"
+        self.client = create_groq_client()
 
-        logger.info("Speech-to-text initialized using Groq model: %s", self.model_name)
+        logger.info(
+            "🎤 Speech-to-text initialized using Groq Whisper model: %s",
+            self.model_name
+        )
 
     def convert_audio_to_text(
         self,
         audio_data: bytes,
-        language: Optional[str] = None
+        language: Optional[str] = None,
     ) -> Optional[str]:
         """
         Convert audio bytes to text using Groq-hosted Whisper.
 
         Returns:
             - transcript string on success
-            - None on failure / empty transcript
+            - None on failure or empty transcript
         """
         if not audio_data:
+            logger.warning("No audio data received for transcription")
             return None
 
         try:
@@ -204,16 +245,17 @@ class SpeechToTextConverter:
                 file=("audio.wav", audio_data),
                 model=self.model_name,
                 language=language,
-                response_format="verbose_json",  # safer for future metadata
+                response_format="verbose_json",
             )
 
+            # Groq returns a dict-like object
             text = (response.get("text") or "").strip()
             return text if text else None
 
         except Exception as e:
-            logger.exception("Groq transcription failed: %s", e)
+            logger.exception("Groq transcription failed")
             return None
 
 
-# Global instance (same contract as before)
+# ── Global singleton (same API contract as before) ───────────
 speech_converter = SpeechToTextConverter()
