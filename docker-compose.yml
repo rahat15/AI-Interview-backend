@@ -6,7 +6,7 @@ services:
       context: .
       dockerfile: dockerfile
     ports:
-      - "8000:8000"
+      - "80:8000"
     environment:
       - MONGO_URI=mongodb+srv://karmansingharora03_db_user:8813917626%24Karman@cluster0.yyjs2ln.mongodb.net/ai-interview?retryWrites=true&w=majority&appName=Cluster0
       #- REDIS_URL=redis://redis:6379/0
