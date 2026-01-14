@@ -8,6 +8,11 @@ from dataclasses import dataclass
 import json
 import re
 from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
+if not logger.handlers:
+    logging.basicConfig(level=logging.INFO)
 
 @dataclass
 class InterviewState:
@@ -108,26 +113,32 @@ class AdvancedInterviewManager:
         if user_answer and state.history:
             last_question = state.history[-1]
             print(f"🔍 SESSION DEBUG - Last question has answer: {last_question.get('answer') is not None}")
-            
+
             if last_question.get("answer") is None:
                 print(f"🔍 SESSION DEBUG - Evaluating answer for question: '{last_question['question'][:50]}...'")
-                
-                # Evaluate the answer (text + voice)
-                evaluation = self._evaluate_answer(
-                    last_question["question"], 
-                    user_answer, 
-                    state.cv_analysis, 
-                    state.jd_analysis,
-                    state.role_title,
+
+                # Evaluate the answer (text-only technical eval + audio-only voice eval)
+                evaluation = await self._evaluate_answer(
+                    last_question["question"],
+                    user_answer,
+                    cv_analysis=state.cv_analysis,
+                    jd_analysis=state.jd_analysis,
+                    cv_text=state.cv_content,
+                    jd_text=state.jd_content,
+                    role_title=state.role_title,
                     audio_data=audio_data,
-                    audio_url=audio_url
+                    audio_url=audio_url,
+                    stage=state.current_stage,
                 )
-                
+
                 print(f"🔍 SESSION DEBUG - Evaluation result: {evaluation}")
-                
-                # Update the last question with answer and evaluation
+
+                # Update the last question with answer and separated evaluations
                 last_question["answer"] = user_answer
-                last_question["evaluation"] = evaluation
+                # Keep legacy 'evaluation' for backward compatibility (combined view)
+                last_question["technical_evaluation"] = evaluation.get("technical")
+                last_question["communication_evaluation"] = evaluation.get("communication")
+                last_question["evaluation"] = evaluation.get("combined")
                 last_question["transcribed_text"] = user_answer  # Store the transcribed text
                 if audio_data:
                     last_question["has_audio"] = True
@@ -379,30 +390,44 @@ class AdvancedInterviewManager:
         
         return questions
     
-    def _evaluate_answer(self, question: str, answer: str, cv_analysis: Dict, 
-                        jd_analysis: Dict, role_title: str, audio_data: bytes = None, 
-                        audio_url: str = None) -> Dict:
-        """Advanced answer evaluation with context-aware scoring and voice analysis"""
-        
-        # Text-based evaluation
-        text_evaluation = self._evaluate_text_answer(question, answer, cv_analysis, jd_analysis, role_title)
-        
-        # Voice-based evaluation
-        voice_evaluation = self._evaluate_voice_answer(audio_data, audio_url)
-        
-        # Combine evaluations
-        combined_score = self._combine_text_voice_scores(text_evaluation, voice_evaluation)
-        
+    async def _evaluate_answer(self, question: str, answer: str, cv_analysis: Dict = None, 
+                        jd_analysis: Dict = None, cv_text: str = "", jd_text: str = "", 
+                        role_title: str = "", audio_data: bytes = None, 
+                        audio_url: str = None, stage: str = "general") -> Dict:
+        """Advanced answer evaluation split into independent technical (text) and communication (audio) parts."""
+        # ---------- Technical evaluation (LLM) - based ONLY on transcript ----------
+        try:
+            from interview.evaluate.judge import evaluate_answer as groq_evaluate
+            # groq_evaluate expects: user_answer, question, jd, cv, stage
+            tech_raw = await groq_evaluate(answer, question, jd_text or "", cv_text or "", stage)
+            # Normalize LLM output into a consistent technical evaluation dict
+            tech = {
+                "technical_depth": int(tech_raw.get("technical_depth", 0)),
+                "summary": tech_raw.get("summary", ""),
+                "raw": tech_raw,
+            }
+        except Exception as e:
+            logger.exception("LLM technical evaluation failed; falling back to heuristic: %s", e)
+            # Fallback to local heuristic-based text evaluation if LLM fails
+            local = self._evaluate_text_answer(question, answer, cv_analysis or {}, jd_analysis or {}, role_title)
+            # Normalize to expected keys (map 0-5 -> 0-10 for technical depth)
+            tech = {
+                "technical_depth": int(round(local.get("score", 0) * 2)),  # map 0-5 to approx 0-10
+                "summary": local.get("feedback", ""),
+                "raw": local,
+            }
+
+        # ---------- Communication evaluation (voice-only) ----------
+        # Ensure communication evaluation uses only audio features (no transcript passed)
+        voice = self._evaluate_voice_answer(audio_data=audio_data, audio_url=audio_url)
+
+        # ---------- Combine at higher level (non-overlapping inputs) ----------
+        combined = self._combine_text_voice_scores(tech, voice)
+
         return {
-            "score": combined_score["total_score"],
-            "feedback": combined_score["feedback"],
-            "suggestions": combined_score["suggestions"],
-            "breakdown": {
-                **text_evaluation["breakdown"],
-                **voice_evaluation["voice_scores"]
-            },
-            "voice_metrics": voice_evaluation["voice_metrics"],
-            "total_possible": 11.0  # 5 for text + 6 for voice
+            "technical": tech,
+            "communication": voice,
+            "combined": combined
         }
     
     def _evaluate_text_answer(self, question: str, answer: str, cv_analysis: Dict, 
@@ -509,70 +534,72 @@ class AdvancedInterviewManager:
                 }
             }
     
-    def _combine_text_voice_scores(self, text_eval: Dict, voice_eval: Dict) -> Dict:
-        """Combine text and voice evaluations into final score"""
-        
-        text_score = text_eval["score"]  # Out of 5
-        voice_score = voice_eval["voice_scores"]["total"]  # Out of 6
-        
-        # If no voice data, heavily penalize
+    def _combine_text_voice_scores(self, tech_eval: Dict, voice_eval: Dict) -> Dict:
+        """Combine technical (LLM) and voice evaluations into a final, non-overlapping score."""
+
+        # Text/technical mapping: technical_depth (0-10) -> text_score (0-5)
+        tech_depth = int(tech_eval.get("technical_depth", 0))
+        text_score = (tech_depth / 10.0) * 5.0
+
+        # If fallback local 'raw' exists, try to use its finer-grained breakdown for suggestions
+        raw_text_eval = tech_eval.get("raw") or {}
+
+        voice_score = voice_eval.get("voice_scores", {}).get("total", 0.0)  # Out of 6
+
+        # If no voice data, slightly penalize overall outcome
         if voice_score == 0.0:
-            # Text-only score with penalty
             total_score = max(0.5, text_score * 0.6)  # 40% penalty for no voice
         else:
             # Combined score out of 11, scaled to 10
             total_score = min(10.0, ((text_score + voice_score) / 11.0) * 10.0)
-        
-        # Enhanced feedback based on actual performance
+
+        # Build feedback
         feedback_parts = []
-        
-        # Text feedback
-        if text_score >= 3.0:
-            feedback_parts.append("Good content quality")
-        elif text_score >= 2.0:
-            feedback_parts.append("Adequate content")
-        elif text_score >= 1.0:
-            feedback_parts.append("Content needs improvement")
+
+        # Technical feedback (based on technical depth)
+        if tech_depth >= 8:
+            feedback_parts.append("Strong technical depth")
+        elif tech_depth >= 5:
+            feedback_parts.append("Adequate technical understanding")
         else:
-            feedback_parts.append("Poor content relevance")
-        
+            feedback_parts.append("Technical depth could be improved")
+
         # Voice feedback
-        voice_scores = voice_eval["voice_scores"]
+        voice_scores = voice_eval.get("voice_scores", {})
         if voice_score == 0.0:
             feedback_parts.append("No voice data detected")
-        elif voice_scores["fluency"] >= 1.5:
+        elif voice_scores.get("raw", {}).get("fluency", 0) >= 1.5 or voice_scores.get("scaled_out_of_10", {}).get("fluency", 0) >= 7.0:
             feedback_parts.append("Good speech fluency")
-        elif voice_scores["fluency"] < 1.0:
+        elif voice_scores.get("raw", {}).get("fluency", 0) < 1.0:
             feedback_parts.append("Could improve speech fluency")
-        
-        if voice_score > 0 and voice_scores["confidence"] >= 1.0:
+
+        if voice_score > 0 and voice_scores.get("scaled_out_of_10", {}).get("confidence", 0) >= 7.0:
             feedback_parts.append("Confident delivery")
-        elif voice_score > 0 and voice_scores["confidence"] < 0.8:
+        elif voice_score > 0 and voice_scores.get("scaled_out_of_10", {}).get("confidence", 0) < 5.0:
             feedback_parts.append("Could sound more confident")
-        
-        # Enhanced suggestions based on actual issues
+
+        # Suggestions
         suggestions = []
-        
-        # Text-based suggestions
-        if text_score < 2.0:
-            suggestions.append("Answer the specific question asked")
-        if text_eval["breakdown"]["examples"] < 0.3:
-            suggestions.append("Include concrete examples with measurable results")
-        if text_eval["breakdown"]["depth"] < 0.5:
-            suggestions.append("Provide more specific details about your experience")
-        
+        if tech_depth < 5:
+            suggestions.append("Provide more technical specifics and examples")
+
+        # Try to use breakdown from raw_text_eval if available
+        try:
+            if raw_text_eval and raw_text_eval.get("breakdown", {}).get("examples", 0) < 0.3:
+                suggestions.append("Include concrete examples with measurable results")
+            if raw_text_eval and raw_text_eval.get("breakdown", {}).get("depth", 0) < 0.5:
+                suggestions.append("Provide more specific details about your experience")
+        except Exception:
+            pass
+
         # Voice-based suggestions
         if voice_score == 0.0:
             suggestions.append("Ensure audio is properly recorded and transmitted")
-        elif voice_scores["pace"] < 0.6:
-            suggestions.append("Adjust speaking pace - aim for 140-170 words per minute")
-        elif voice_scores["clarity"] < 1.0:
+        elif voice_scores.get("scaled_out_of_10", {}).get("pace", 0) < 6.0:
+            suggestions.append("Adjust speaking pace - aim for ~140-170 WPM")
+        elif voice_scores.get("scaled_out_of_10", {}).get("clarity", 0) < 6.0:
             suggestions.append("Speak more clearly and maintain consistent volume")
-        
-        # Generic answer detection
-        if "passionate software engineer" in text_eval["suggestions"]:
-            suggestions.insert(0, "Avoid generic responses - tailor your answer to the specific question")
-        
+
         return {
             "total_score": round(total_score, 1),
             "feedback": " | ".join(feedback_parts) if feedback_parts else "No meaningful response detected",
@@ -869,12 +896,23 @@ class AdvancedInterviewManager:
         
         # Calculate average scores
         scores = []
-        answered_questions = [q for q in state["history"] if q.get("evaluation")]
-        
+        # Treat a question as answered if it has a technical evaluation (preferred) or a legacy combined evaluation
+        answered_questions = [q for q in state["history"] if q.get("technical_evaluation") or q.get("evaluation")]
+
         for question in answered_questions:
-            eval_data = question.get("evaluation", {})
-            if "score" in eval_data:
+            eval_data = question.get("evaluation") or {}
+            # combined evaluation uses 'total_score' field; fall back to legacy 'score'
+            if "total_score" in eval_data:
+                scores.append(eval_data["total_score"])
+            elif "score" in eval_data:
                 scores.append(eval_data["score"])
+            else:
+                # If no combined score, try to approximate from technical + communication
+                tech = question.get("technical_evaluation") or {}
+                comm = question.get("communication_evaluation") or {}
+                ts = tech.get("technical_depth", 0) / 10.0 * 10.0  # normalized placeholder
+                vs = comm.get("voice_scores", {}).get("total", 0)
+                scores.append(round(min(10.0, (ts + vs) / 2.0), 1))
         
         avg_score = sum(scores) / len(scores) if scores else 0
         

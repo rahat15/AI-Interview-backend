@@ -19,54 +19,50 @@ async def submit_audio_answer(
     question_id: str = Form(...),
     audio_file: UploadFile = File(...)
 ):
-    """Submit audio answer and get speech-to-text + voice analysis"""
+    """Submit audio answer and run the unified interview step (ASR + voice analysis + technical evaluation).
+
+    This endpoint delegates to the interview manager step so the behavior matches the main `/answer` flow.
+    """
     try:
-        # Validate session exists
+        # Validate session exists (SessionModel here may be a thin wrapper; keep validation)
         session = await SessionModel.get(session_id)
         if not session:
             raise HTTPException(status_code=404, detail="Session not found")
-        
-        # Read audio file
+
+        if not audio_file:
+            raise HTTPException(status_code=400, detail="Audio file is required")
+
         audio_data = await audio_file.read()
-        
+
         # Convert speech to text
         transcribed_text = speech_converter.convert_audio_to_text(
             audio_data=audio_data,
             filename=audio_file.filename
         )
 
-        
-        # Analyze voice characteristics
-        voice_analysis = voice_analyzer.analyze_voice(
+        # Delegate to interview manager (it will perform technical LLM eval and voice analysis)
+        from interview.session_manager import interview_manager
+
+        # Here we pass the audio_data and transcribed text via the unified step
+        result = await interview_manager.step(
+            user_id=session.user_id if hasattr(session, 'user_id') else session_id,
+            session_id=session.id if hasattr(session, 'id') else session_id,
+            user_answer=transcribed_text,
             audio_data=audio_data,
-            transcript=transcribed_text
         )
 
-        # Create answer record
-        answer_data = {
-            "id": str(uuid.uuid4()),
-            "session_id": session_id,
-            "question_id": question_id,
-            "text": transcribed_text,
-            "asr_text": transcribed_text,
-            "meta": {
-                "has_audio": True,
-                "voice_analysis": voice_analysis,
-                "audio_filename": audio_file.filename
-            },
-            "created_at": datetime.utcnow()
-        }
-        
-        answer = Answer(**answer_data)
-        await answer.insert()
-        
+        history = result.get("history", [])
+        last_item = history[-1] if history else {}
+        evaluated_item = history[-2] if len(history) >= 2 else {}
+
         return {
-            "answer_id": answer.id,
-            "transcribed_text": transcribed_text,
-            "voice_analysis": voice_analysis,
-            "message": "Audio answer processed successfully"
+            "evaluation": evaluated_item.get("evaluation"),
+            "technical": evaluated_item.get("technical_evaluation"),
+            "communication": evaluated_item.get("communication_evaluation"),
+            "next_question": last_item.get("question") if not result.get("completed") else None,
+            "state": result,
         }
-        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing audio: {str(e)}")
 

@@ -258,4 +258,9 @@ class SpeechToTextConverter:
 
 
 # ── Global singleton (same API contract as before) ───────────
-speech_converter = SpeechToTextConverter()
+# Create instance lazily and fail-safe when GROQ API key isn't present or initialization fails
+try:
+    speech_converter = SpeechToTextConverter()
+except Exception:
+    logger.exception("Failed to initialize speech converter; ASR disabled")
+    speech_converter = None  # Modules using this should handle None gracefully

@@ -302,6 +302,8 @@ async def submit_answer(
 
         response_data = {
             "evaluation": evaluated_item.get("evaluation"),
+            "technical": evaluated_item.get("technical_evaluation"),
+            "communication": evaluated_item.get("communication_evaluation"),
             "next_question": next_question,
             "state": result,
         }

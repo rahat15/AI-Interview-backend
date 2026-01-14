@@ -62,11 +62,23 @@ async def followup_decision(state: dict) -> dict:
         return {"decision": "stage_transition", "reason": "No prior response"}
 
     last = history[-1]
-    evaluation = last.get("evaluation", {}) or {}
+    # Backwards-compatible: prefer separated evaluations (communication vs technical)
+    comm = last.get("communication_evaluation") or {}
+    tech = last.get("technical_evaluation") or {}
 
-    clarity = int(evaluation.get("clarity", 0))
-    confidence = int(evaluation.get("confidence", 0))
-    tech_depth = int(evaluation.get("technical_depth", 0))
+    # Extract clarity/confidence from voice analysis (0-10 scale expected)
+    clarity = int(comm.get("voice_scores", {}).get("scaled_out_of_10", {}).get("clarity", 0))
+    confidence = int(comm.get("voice_scores", {}).get("scaled_out_of_10", {}).get("confidence", 0))
+
+    # Technical depth from LLM technical evaluation (0-10)
+    tech_depth = int(tech.get("technical_depth", tech.get("raw", {}).get("technical_depth", 0)))
+
+    # Fallback to old evaluation structure if none of the above are available
+    if clarity == 0 and confidence == 0 and tech_depth == 0:
+        evaluation = last.get("evaluation", {}) or {}
+        clarity = int(evaluation.get("clarity", 0))
+        confidence = int(evaluation.get("confidence", 0))
+        tech_depth = int(evaluation.get("technical_depth", 0))
 
     # --------------------------------------------------
     # Count recent follow-ups
