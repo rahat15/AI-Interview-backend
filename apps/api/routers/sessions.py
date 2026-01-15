@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, status, Form
 from typing import List, Optional
 from datetime import datetime
 import httpx
@@ -12,11 +12,8 @@ from core.schemas import (
     AnswerCreate,
     Report as ReportSchema,
 )
-from interview.speech_to_text import speech_converter
-from interview.voice_analyzer import VoiceAnalyzer
 
-router = APIRouter(prefix="/sessions", tags=["sessions"])
-voice_analyzer = VoiceAnalyzer()
+router = APIRouter()
 
 # Base URL for fetching resume data
 RESUME_BASE_URL = "http://localhost:3000"
@@ -270,68 +267,6 @@ async def submit_answer(session_id: str, answer_in: AnswerCreate):
         raise HTTPException(status_code=500, detail=f"Error submitting answer: {str(e)}")
 
 
-@router.post("/{session_id}/audio-answer")
-async def submit_audio_answer(
-    session_id: str,
-    question_id: str = Form(...),
-    audio_file: UploadFile = File(...)
-):
-    """Submit audio answer with speech-to-text and voice analysis"""
-    try:
-        session = await SessionModel.get(session_id)
-        if not session:
-            raise HTTPException(status_code=404, detail="Session not found")
-
-        if session.current_question_index >= session.total_questions:
-            raise HTTPException(status_code=400, detail="No pending question to answer")
-
-        # Read audio file
-        audio_data = await audio_file.read()
-        
-        # Convert speech to text
-        transcribed_text = speech_converter.convert_audio_to_text(audio_data)
-        
-        # Analyze voice characteristics
-        voice_analysis = voice_analyzer.analyze_voice(audio_data=audio_data)
-        
-        # Create answer record
-        answer_data = {
-            "id": str(uuid.uuid4()),
-            "session_id": session_id,
-            "question_id": question_id,
-            "text": transcribed_text,
-            "asr_text": transcribed_text,
-            "meta": {
-                "has_audio": True,
-                "voice_analysis": voice_analysis,
-                "audio_filename": audio_file.filename
-            },
-            "created_at": datetime.utcnow()
-        }
-        
-        answer = Answer(**answer_data)
-        await answer.insert()
-
-        # Update session progress
-        session.current_question_index += 1
-        session.updated_at = datetime.utcnow()
-        
-        if session.current_question_index >= session.total_questions:
-            session.status = "completed"
-            session.completed_at = datetime.utcnow()
-        
-        await session.save()
-
-        return {
-            "message": "Audio answer processed successfully",
-            "answer_id": answer.id,
-            "transcribed_text": transcribed_text,
-            "voice_analysis": voice_analysis,
-            "next_question_index": session.current_question_index,
-            "session_completed": session.status == "completed"
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error processing audio answer: {str(e)}")
 
 
 @router.get("/{session_id}/report", response_model=ReportSchema)

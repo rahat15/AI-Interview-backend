@@ -126,7 +126,6 @@ from cv_eval.improvement import Improvement
 
 router = APIRouter(
     prefix="/v1/cv",
-    tags=["cv"],
 )
 
 # ---------- Init Engines ----------

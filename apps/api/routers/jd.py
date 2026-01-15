@@ -8,7 +8,7 @@ from datetime import datetime
 from core.models import JobDescription
 from core.config import settings
 
-router = APIRouter(prefix="/jd", tags=["Job Description Management"])
+router = APIRouter()
 
 async def save_jd_file(file: UploadFile, user_id: str = "default") -> str:
     """Save JD file to server and return file path"""

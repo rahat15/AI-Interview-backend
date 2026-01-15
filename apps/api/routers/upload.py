@@ -10,7 +10,7 @@ from apps.api.eval_engine_instance import evaluation_engine  # ✅ CVEvaluationE
 from cv_eval.improvement import Improvement
 
 
-router = APIRouter(prefix="/upload", tags=["upload"])
+router = APIRouter()
 
 # -----------------------
 # Helpers

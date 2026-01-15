@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from typing import Dict, List, Any
 
-router = APIRouter(prefix="/api", tags=["API Overview"])
+router = APIRouter(prefix="/api")
 
 @router.get("/", summary="API Overview")
 async def api_overview():
