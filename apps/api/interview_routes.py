@@ -247,6 +247,11 @@ async def submit_answer(
     - Both: Complete analysis with cheating detection
     """
     try:
+        print(f"\n{'='*60}")
+        print(f"📥 RECEIVED REQUEST - user_id: {user_id}, session_id: {session_id}")
+        print(f"📁 audio_file: {audio_file.filename if audio_file else 'None'} (exists: {audio_file is not None})")
+        print(f"📁 video_file: {video_file.filename if video_file else 'None'} (exists: {video_file is not None})")
+        print(f"{'='*60}\n")
         # Validate session exists first
         session_state = interview_manager.get_state(user_id, session_id)
         if not session_state:
@@ -260,6 +265,7 @@ async def submit_answer(
         
         answer_text = ""
         video_analysis = None
+        video_data = None
         
         # Process video if provided
         if video_file:
@@ -268,25 +274,56 @@ async def submit_answer(
             video_analysis = video_analyzer.analyze_video(video_data)
             print(f"🎥 VIDEO ANALYSIS - Cheating risk: {video_analysis['cheating_detection']['risk_level']}")
         
-        # Process audio
+        # Process audio - if audio_file is empty, extract from video
+        audio_data = None
         if audio_file:
             audio_data = await audio_file.read()
+            print(f"🔊 AUDIO FILE - Name: {audio_file.filename}, Size: {len(audio_data)} bytes")
+            
+            if len(audio_data) == 0:
+                print("⚠️ WARNING: Audio file is EMPTY (0 bytes)")
+                audio_data = None
+        
+        # If no valid audio but video exists, extract audio from video
+        if not audio_data and video_file and video_data:
+            print("🎬 Extracting audio from video file...")
+            try:
+                import tempfile
+                import subprocess
+                
+                # Save video temporarily
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as video_tmp:
+                    video_tmp.write(video_data)
+                    video_path = video_tmp.name
+                
+                # Extract audio using ffmpeg
+                audio_path = video_path.replace('.mp4', '.wav')
+                result = subprocess.run(
+                    ['ffmpeg', '-i', video_path, '-vn', '-acodec', 'pcm_s16le', '-ar', '16000', '-ac', '1', audio_path, '-y'],
+                    capture_output=True,
+                    timeout=10
+                )
+                
+                if result.returncode == 0 and os.path.exists(audio_path):
+                    with open(audio_path, 'rb') as f:
+                        audio_data = f.read()
+                    print(f"✅ Extracted audio from video: {len(audio_data)} bytes")
+                    os.remove(audio_path)
+                else:
+                    print(f"❌ Failed to extract audio from video: {result.stderr.decode()}")
+                
+                os.remove(video_path)
+            except Exception as e:
+                print(f"❌ Audio extraction error: {e}")
+        
+        # Transcribe audio if available
+        if audio_data and len(audio_data) > 100:
             from interview.speech_to_text import speech_converter
             answer_text = speech_converter.convert_audio_to_text(audio_data)
             print(f"🎤 TRANSCRIPTION - Text: '{answer_text}'")
-            
-            # Check for speech recognition failures
-            failure_indicators = [
-                "Could not process audio",
-                "Could not understand audio", 
-                "Speech recognition service unavailable"
-            ]
-            
-            if not answer_text or any(indicator in answer_text for indicator in failure_indicators):
-                raise HTTPException(
-                    status_code=400, 
-                    detail={"error": f"Speech recognition failed: {answer_text or 'No audio detected'}"}
-                )
+        else:
+            answer_text = "No audio detected"
+            print("⚠️ No valid audio data available for transcription")
         
         # Run the graph with voice analysis
         result = await interview_manager.step(

@@ -14,6 +14,7 @@ from apps.api.routers.sessions import router as sessions_router
 from apps.api.routers.overview import router as overview_router
 from apps.api.routers.jd import router as jd_router
 from apps.api.routers.audio import router as audio_router
+from apps.api.routers.resume import router as resume_router
 from apps.api.interview_routes import router as interview_router
 
 # Import database connection
@@ -113,6 +114,7 @@ def create_app() -> FastAPI:
     app.include_router(sessions_router, prefix="/v1/sessions", tags=["Session Management"])
     app.include_router(jd_router, prefix="/v1/jd", tags=["Job Description"])
     app.include_router(audio_router, prefix="/v1/audio", tags=["Audio Processing"])
+    app.include_router(resume_router, prefix="/v1", tags=["Resume Upload"])
     app.include_router(interview_router, prefix="/v1/interview", tags=["Interview"])
     
     # Backward compatibility: Add interview routes without /v1 prefix

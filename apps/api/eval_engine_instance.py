@@ -1,29 +1,27 @@
-# Simple mock evaluation engine to avoid import errors
-class MockCVEvaluationEngine:
-    def evaluate(self, cv_text: str, jd_text: str = ""):
-        return {
-            "cv_quality": {
-                "overall_score": 85.0,
-                "band": "Good",
-                "subscores": [
-                    {
-                        "dimension": "Structure",
-                        "score": 4.2,
-                        "max_score": 5.0,
-                        "evidence": ["Clear sections", "Good formatting"]
-                    }
-                ]
-            },
-            "jd_match": {
-                "overall_score": 78.0,
-                "band": "Good",
-                "subscores": []
-            } if jd_text else {},
-            "fit_index": {
-                "score": 81.5,
-                "band": "Good"
-            } if jd_text else {}
-        }
+from cv_eval.llm_scorer import LLMScorer
+import logging
 
-# Create a global instance
-evaluation_engine = MockCVEvaluationEngine()
+logger = logging.getLogger(__name__)
+
+class CVEvaluationEngine:
+    def __init__(self):
+        self.llm_scorer = LLMScorer()
+    
+    def evaluate(self, cv_text: str, jd_text: str = ""):
+        """Evaluate CV using LLM scorer"""
+        try:
+            return self.llm_scorer.unified_evaluate(cv_text, jd_text)
+        except Exception as e:
+            logger.error(f"LLM evaluation failed: {e}")
+            # Fallback to basic response
+            return {
+                "cv_quality": {
+                    "overall_score": 0,
+                    "band": "Error",
+                    "subscores": []
+                },
+                "jd_match": {} if not jd_text else {"overall_score": 0, "band": "Error", "subscores": []},
+                "fit_index": {} if not jd_text else {"score": 0, "band": "Error"}
+            }
+
+evaluation_engine = CVEvaluationEngine()

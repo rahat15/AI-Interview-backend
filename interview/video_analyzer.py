@@ -72,7 +72,8 @@ class VideoAnalyzer:
                 eye_score = self._calculate_eye_contact(landmarks)
                 eye_contact_scores.append(eye_score)
                 
-                if eye_score < 0.5:
+                # Stricter threshold for looking away
+                if eye_score < 0.3:
                     looking_away_frames += 1
                 
                 # Blink detection
@@ -132,26 +133,47 @@ class VideoAnalyzer:
         }
     
     def _calculate_eye_contact(self, landmarks) -> float:
-        """Calculate eye contact score based on iris position"""
-        # Left eye iris (468-473) and right eye iris (473-478)
-        left_iris = landmarks.landmark[468]
-        right_iris = landmarks.landmark[473]
-        
-        # Eye corners for reference
-        left_eye_left = landmarks.landmark[33]
-        left_eye_right = landmarks.landmark[133]
-        right_eye_left = landmarks.landmark[362]
-        right_eye_right = landmarks.landmark[263]
-        
-        # Calculate iris center position relative to eye
-        left_center = (left_iris.x - left_eye_left.x) / (left_eye_right.x - left_eye_left.x)
-        right_center = (right_iris.x - right_eye_left.x) / (right_eye_right.x - right_eye_left.x)
-        
-        # Score: 1.0 = looking straight, 0.0 = looking away
-        left_score = 1.0 - abs(left_center - 0.5) * 2
-        right_score = 1.0 - abs(right_center - 0.5) * 2
-        
-        return (left_score + right_score) / 2
+        """Calculate eye contact score based on iris position and gaze direction"""
+        try:
+            # Get iris landmarks (468-473 left, 473-478 right)
+            left_iris_center = landmarks.landmark[468]
+            right_iris_center = landmarks.landmark[473]
+            
+            # Get eye corner landmarks for reference frame
+            left_eye_left = landmarks.landmark[33]   # Left corner of left eye
+            left_eye_right = landmarks.landmark[133] # Right corner of left eye
+            right_eye_left = landmarks.landmark[362] # Left corner of right eye  
+            right_eye_right = landmarks.landmark[263] # Right corner of right eye
+            
+            # Calculate horizontal position of iris within eye (0 = far left, 1 = far right)
+            left_eye_width = abs(left_eye_right.x - left_eye_left.x)
+            right_eye_width = abs(right_eye_right.x - right_eye_left.x)
+            
+            if left_eye_width == 0 or right_eye_width == 0:
+                return 0.0
+            
+            # Iris position relative to eye (0.5 = center)
+            left_iris_pos = (left_iris_center.x - left_eye_left.x) / left_eye_width
+            right_iris_pos = (right_iris_center.x - right_eye_left.x) / right_eye_width
+            
+            # Calculate deviation from center (0.5)
+            # If looking at camera, iris should be centered (around 0.4-0.6)
+            left_deviation = abs(left_iris_pos - 0.5)
+            right_deviation = abs(right_iris_pos - 0.5)
+            
+            # Average deviation
+            avg_deviation = (left_deviation + right_deviation) / 2
+            
+            # Convert to score: 0 deviation = 1.0 score, 0.5 deviation = 0.0 score
+            # Threshold: deviation > 0.15 means looking away
+            if avg_deviation > 0.15:
+                score = 0.0
+            else:
+                score = 1.0 - (avg_deviation / 0.15)
+            
+            return max(0.0, min(1.0, score))
+        except Exception:
+            return 0.0
     
     def _calculate_ear(self, landmarks) -> float:
         """Calculate Eye Aspect Ratio for blink detection"""
@@ -246,9 +268,9 @@ class VideoAnalyzer:
         }
     
     def _rate_eye_contact(self, score: float) -> str:
-        if score >= 0.7: return "Excellent"
-        if score >= 0.5: return "Good"
-        if score >= 0.3: return "Fair"
+        if score >= 0.6: return "Excellent"
+        if score >= 0.4: return "Good"
+        if score >= 0.2: return "Fair"
         return "Poor"
     
     def _rate_blink_rate(self, rate: float) -> str:
@@ -265,7 +287,7 @@ class VideoAnalyzer:
     def _calculate_overall_score(self, eye_contact: float, head_stability: float,
                                  face_presence: float, cheating: Dict) -> Dict[str, Any]:
         """Calculate overall behavior score"""
-        # Weighted scoring
+        # Weighted scoring - physical behavior only
         base_score = (
             eye_contact * 0.3 +
             head_stability * 0.3 +
@@ -277,10 +299,12 @@ class VideoAnalyzer:
         
         final_score = max(0, (base_score - cheating_penalty) * 100)
         
+        # Note: This is ONLY physical behavior, not answer quality
         return {
             "score": round(final_score, 2),
             "rating": self._get_score_rating(final_score),
-            "confidence": "High" if face_presence > 80 else "Medium" if face_presence > 60 else "Low"
+            "confidence": "High" if face_presence > 80 else "Medium" if face_presence > 60 else "Low",
+            "note": "Physical behavior only - does not reflect answer quality or content"
         }
     
     def _get_score_rating(self, score: float) -> str:
