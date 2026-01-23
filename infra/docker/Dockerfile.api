@@ -17,7 +17,13 @@ RUN apt-get update && apt-get install -y \
 
 # Copy requirements and install Python dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install \
+    --no-cache-dir \
+    --default-timeout=200 \
+    --retries=10 \
+    -r /app/cv-req.txt
+
+RUN pip install --no-cache-dir opencv-python-headless
 
 # Copy project
 COPY . .
