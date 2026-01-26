@@ -3,8 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 from contextlib import asynccontextmanager
 
-from dotenv import load_dotenv
-load_dotenv()
+# from dotenv import load_dotenv
+# load_dotenv()
 
 # Import routers
 from apps.api.routers.cv import router as cv_router
@@ -13,7 +13,7 @@ from apps.api.routers.evaluation import router as evaluation_router
 from apps.api.routers.sessions import router as sessions_router
 from apps.api.routers.overview import router as overview_router
 from apps.api.routers.jd import router as jd_router
-from apps.api.routers.audio import router as audio_router
+# from apps.api.routers.audio import router as audio_router
 from apps.api.routers.resume import router as resume_router
 from apps.api.interview_routes import router as interview_router
 
@@ -48,38 +48,10 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="AI Interview Coach API",
         version="1.0.0",
-        description="""A comprehensive AI-powered interview coaching platform that provides:
-        
-        ## Features
-        - **CV Evaluation**: Score CV quality and job fit
-        - **Interview Sessions**: Conduct adaptive AI interviews
-        - **File Processing**: Upload and process CVs/JDs in multiple formats
-        - **Improvement Suggestions**: Generate tailored resume improvements
-        - **Session Management**: Track and manage interview sessions
-        - **Real-time Evaluation**: Get instant feedback on responses
-        - **Audio Processing**: Speech-to-text and voice analysis
-        
-        ## API Endpoints
-        All endpoints are prefixed with `/v1` for versioning:
-        - **CV** (`/v1/cv/*`): CV scoring and evaluation
-        - **Upload** (`/v1/upload/*`): File upload and processing
-        - **Evaluation** (`/v1/evaluation/*`): Direct CV/JD evaluation
-        - **Sessions** (`/v1/sessions/*`): Interview session management
-        - **Job Description** (`/v1/jd/*`): JD upload and management
-        - **Audio** (`/v1/audio/*`): Audio processing and analysis
-        - **Interview** (`/v1/interview/*`): Live interview flow
-        """,
         docs_url="/docs",
         redoc_url="/redoc",
         openapi_url="/openapi.json",
         lifespan=lifespan,
-        contact={
-            "name": "AI Interview Coach",
-            "email": "support@aiinterviewcoach.com",
-        },
-        license_info={
-            "name": "MIT",
-        },
     )
 
     # Middleware
@@ -92,35 +64,23 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # Health check
-    @app.get("/healthz", tags=["Health"], summary="Health Check")
-    async def health():
-        """Check if the API is running and connected to services."""
-        return {
-            "status": "ok", 
-            "message": "AI Interview Coach API is running",
-            "version": "1.0.0",
-            "services": {
-                "mongodb": "connected",
-                "api": "healthy"
-            }
-        }
+    # ✅ Health check
+    @app.get("/healthz", tags=["Health"])
+    async def healthz():
+        return {"status": "ok"}
 
-    # Include all routers with proper prefixes and tags
+    # Routers
     app.include_router(overview_router, tags=["API Overview"])
     app.include_router(cv_router, tags=["CV Evaluation"])
-    app.include_router(upload_router, prefix="/v1/upload", tags=["File Upload & Processing"])
-    app.include_router(evaluation_router, prefix="/v1/evaluation", tags=["Direct Evaluation"])
-    app.include_router(sessions_router, prefix="/v1/sessions", tags=["Session Management"])
+    app.include_router(upload_router, tags=["File Upload & Processing"])
+    app.include_router(evaluation_router, tags=["Direct Evaluation"])
+    app.include_router(sessions_router, tags=["Session Management"])
     app.include_router(jd_router, prefix="/v1/jd", tags=["Job Description"])
-    app.include_router(audio_router, prefix="/v1/audio", tags=["Audio Processing"])
-    app.include_router(resume_router, prefix="/v1", tags=["Resume Upload"])
-    app.include_router(interview_router, prefix="/v1/interview", tags=["Interview"])
-    
-    # Backward compatibility: Add interview routes without /v1 prefix
-    app.include_router(interview_router, prefix="/interview", tags=["Interview (Legacy)"])
+    app.include_router(resume_router, tags=["Resume Upload"])
+    app.include_router(interview_router, prefix="/api/interview", tags=["Interview"])
+    app.include_router(interview_router, tags=["Interview (Legacy)"])
 
-    return app
+    return app   # ✅ RETURN AT THE VERY END
 
 
 app = create_app()
