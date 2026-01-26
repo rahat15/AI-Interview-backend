@@ -118,7 +118,7 @@ async def fetch_jd_content(jd_id: str) -> Optional[str]:
         return None
 
 # No prefix here; prefix is added in app.include_router
-router = APIRouter(tags=["Interview"])
+router = APIRouter()
 
 # ---------------------------
 # Request / Response Schemas
@@ -151,6 +151,7 @@ class AnswerResponse(BaseModel):
     evaluation: Optional[Dict[str, Any]]
     next_question: Optional[str]
     state: Dict[str, Any]
+    video_analysis: Optional[Dict[str, Any]] = None
 
 
 class ReportResponse(BaseModel):
@@ -235,15 +236,22 @@ async def start_session(req: StartSessionRequest):
 async def submit_answer(
     user_id: str = Form(...),
     session_id: str = Form(...),
-    audio_file: UploadFile = File(...)
+    audio_file: UploadFile = File(None),
+    video_file: UploadFile = File(None)
 ):
     """
-    Submit a voice-only answer to the current question.
-    Converts speech to text and evaluates both content and delivery.
+    Submit audio/video answer to the current question.
+    Supports:
+    - Audio only: Speech-to-text + voice analysis
+    - Video only: Extract audio + video behavior analysis  
+    - Both: Complete analysis with cheating detection
     """
     try:
-        print(f"🎤 AUDIO DEBUG - File: {audio_file.filename}, Content-Type: {audio_file.content_type}")
-        
+        print(f"\n{'='*60}")
+        print(f"📥 RECEIVED REQUEST - user_id: {user_id}, session_id: {session_id}")
+        print(f"📁 audio_file: {audio_file.filename if audio_file else 'None'} (exists: {audio_file is not None})")
+        print(f"📁 video_file: {video_file.filename if video_file else 'None'} (exists: {video_file is not None})")
+        print(f"{'='*60}\n")
         # Validate session exists first
         session_state = interview_manager.get_state(user_id, session_id)
         if not session_state:
@@ -252,49 +260,83 @@ async def submit_answer(
                 detail={"error": f"Session not found for user_id: {user_id}, session_id: {session_id}"}
             )
         
-        if not audio_file:
-            raise HTTPException(status_code=400, detail={"error": "Audio file is required"})
+        if not audio_file and not video_file:
+            raise HTTPException(status_code=400, detail={"error": "Either audio or video file is required"})
         
-        # Read audio file data
-        audio_data = await audio_file.read()
-        print(f"🎤 AUDIO DEBUG - Data size: {len(audio_data)} bytes")
+        answer_text = ""
+        video_analysis = None
+        video_data = None
         
-        # Convert speech to text
-        from interview.speech_to_text import speech_converter
-        answer_text = speech_converter.convert_audio_to_text(audio_data)
-        print(f"🎤 TRANSCRIPTION DEBUG - Text: '{answer_text}'")
+        # Process video if provided
+        if video_file:
+            from interview.video_analyzer import video_analyzer
+            video_data = await video_file.read()
+            video_analysis = video_analyzer.analyze_video(video_data)
+            print(f"🎥 VIDEO ANALYSIS - Cheating risk: {video_analysis['cheating_detection']['risk_level']}")
         
-        # Check for speech recognition failures
-        failure_indicators = [
-            "Could not process audio",
-            "Could not understand audio", 
-            "Speech recognition service unavailable"
-        ]
+        # Process audio - if audio_file is empty, extract from video
+        audio_data = None
+        if audio_file:
+            audio_data = await audio_file.read()
+            print(f"🔊 AUDIO FILE - Name: {audio_file.filename}, Size: {len(audio_data)} bytes")
+            
+            if len(audio_data) == 0:
+                print("⚠️ WARNING: Audio file is EMPTY (0 bytes)")
+                audio_data = None
         
-        if not answer_text or any(indicator in answer_text for indicator in failure_indicators):
-            raise HTTPException(
-                status_code=400, 
-                detail={"error": f"Speech recognition failed: {answer_text or 'No audio detected'}"}
-            )
+        # If no valid audio but video exists, extract audio from video
+        if not audio_data and video_file and video_data:
+            print("🎬 Extracting audio from video file...")
+            try:
+                import tempfile
+                import subprocess
+                
+                # Save video temporarily
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as video_tmp:
+                    video_tmp.write(video_data)
+                    video_path = video_tmp.name
+                
+                # Extract audio using ffmpeg
+                audio_path = video_path.replace('.mp4', '.wav')
+                result = subprocess.run(
+                    ['ffmpeg', '-i', video_path, '-vn', '-acodec', 'pcm_s16le', '-ar', '16000', '-ac', '1', audio_path, '-y'],
+                    capture_output=True,
+                    timeout=10
+                )
+                
+                if result.returncode == 0 and os.path.exists(audio_path):
+                    with open(audio_path, 'rb') as f:
+                        audio_data = f.read()
+                    print(f"✅ Extracted audio from video: {len(audio_data)} bytes")
+                    os.remove(audio_path)
+                else:
+                    print(f"❌ Failed to extract audio from video: {result.stderr.decode()}")
+                
+                os.remove(video_path)
+            except Exception as e:
+                print(f"❌ Audio extraction error: {e}")
+        
+        # Transcribe audio if available
+        if audio_data and len(audio_data) > 100:
+            from interview.speech_to_text import speech_converter
+            answer_text = speech_converter.convert_audio_to_text(audio_data)
+            print(f"🎤 TRANSCRIPTION - Text: '{answer_text}'")
+        else:
+            answer_text = "No audio detected"
+            print("⚠️ No valid audio data available for transcription")
         
         # Run the graph with voice analysis
         result = await interview_manager.step(
             user_id,
             session_id,
             user_answer=answer_text,
-            audio_data=audio_data
+            audio_data=audio_data if audio_file else None
         )
 
         history = result.get("history", [])
-        
-        # 2. Get the Next Question (The last thing added)
-        # If the graph ended (completed), there might be no next question.
         last_item = history[-1] if history else {}
         next_question = last_item.get("question") if not result.get("completed") else None
 
-        # 3. Get the Evaluation (The thing we just answered)
-        # If we have at least 2 items (Old Q + New Q), the evaluation is in the second to last [-2].
-        # If the interview is done (completed), the evaluation is in the last item [-1].
         if result.get("completed"):
             evaluated_item = last_item
         else:
@@ -304,11 +346,10 @@ async def submit_answer(
             "evaluation": evaluated_item.get("evaluation"),
             "technical": evaluated_item.get("technical_evaluation"),
             "communication": evaluated_item.get("communication_evaluation"),
+            "video_analysis": video_analysis,
             "next_question": next_question,
             "state": result,
         }
-        
-        print(f"🎤 RESPONSE DEBUG - Full response: {response_data}")
         
         return response_data
     except HTTPException:

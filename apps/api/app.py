@@ -11,10 +11,10 @@ from apps.api.routers.cv import router as cv_router
 from apps.api.routers.upload import router as upload_router
 from apps.api.routers.evaluation import router as evaluation_router
 from apps.api.routers.sessions import router as sessions_router
-from apps.api.routers.uploads import router as uploads_router
 from apps.api.routers.overview import router as overview_router
 from apps.api.routers.jd import router as jd_router
 from apps.api.routers.audio import router as audio_router
+from apps.api.routers.resume import router as resume_router
 from apps.api.interview_routes import router as interview_router
 
 # Import database connection
@@ -57,14 +57,17 @@ def create_app() -> FastAPI:
         - **Improvement Suggestions**: Generate tailored resume improvements
         - **Session Management**: Track and manage interview sessions
         - **Real-time Evaluation**: Get instant feedback on responses
+        - **Audio Processing**: Speech-to-text and voice analysis
         
-        ## API Sections
-        - **CV**: CV scoring and evaluation endpoints
-        - **Upload**: File upload and processing
-        - **Evaluation**: Direct CV/JD evaluation
-        - **Sessions**: Interview session management
-        - **Uploads**: Artifact upload and management
-        - **Interview**: Live interview flow management
+        ## API Endpoints
+        All endpoints are prefixed with `/v1` for versioning:
+        - **CV** (`/v1/cv/*`): CV scoring and evaluation
+        - **Upload** (`/v1/upload/*`): File upload and processing
+        - **Evaluation** (`/v1/evaluation/*`): Direct CV/JD evaluation
+        - **Sessions** (`/v1/sessions/*`): Interview session management
+        - **Job Description** (`/v1/jd/*`): JD upload and management
+        - **Audio** (`/v1/audio/*`): Audio processing and analysis
+        - **Interview** (`/v1/interview/*`): Live interview flow
         """,
         docs_url="/docs",
         redoc_url="/redoc",
@@ -105,17 +108,17 @@ def create_app() -> FastAPI:
 
     # Include all routers with proper prefixes and tags
     app.include_router(overview_router, tags=["API Overview"])
-    app.include_router(cv_router, prefix="/v1", tags=["CV Evaluation"])
-    app.include_router(upload_router, prefix="/upload", tags=["File Upload & Processing"])
-    app.include_router(evaluation_router, prefix="/evaluation", tags=["Direct Evaluation"])
-    app.include_router(sessions_router, prefix="/sessions", tags=["Session Management"])
-    app.include_router(uploads_router, prefix="/uploads", tags=["Artifact Management"])
-    app.include_router(jd_router, prefix="/v1", tags=["Job Description Management"])
-    app.include_router(audio_router, prefix="/v1", tags=["Audio Processing"])
-    app.include_router(interview_router, prefix="/api/interview", tags=["Live Interview"])
+    app.include_router(cv_router, tags=["CV Evaluation"])
+    app.include_router(upload_router, prefix="/v1/upload", tags=["File Upload & Processing"])
+    app.include_router(evaluation_router, prefix="/v1/evaluation", tags=["Direct Evaluation"])
+    app.include_router(sessions_router, prefix="/v1/sessions", tags=["Session Management"])
+    app.include_router(jd_router, prefix="/v1/jd", tags=["Job Description"])
+    app.include_router(audio_router, prefix="/v1/audio", tags=["Audio Processing"])
+    app.include_router(resume_router, prefix="/v1", tags=["Resume Upload"])
+    app.include_router(interview_router, prefix="/v1/interview", tags=["Interview"])
     
-    # Add interview routes without prefix for backward compatibility
-    app.include_router(interview_router, tags=["Interview - No Prefix"])
+    # Backward compatibility: Add interview routes without /v1 prefix
+    app.include_router(interview_router, prefix="/interview", tags=["Interview (Legacy)"])
 
     return app
 

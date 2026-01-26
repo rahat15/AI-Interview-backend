@@ -227,11 +227,16 @@ class SpeechToTextConverter:
     def convert_audio_to_text(self, audio_data: bytes, language: Optional[str] = None, ) -> Optional[str]:
         if not audio_data:
             logger.warning("No audio data received for transcription")
-            return None
+            return "No audio detected"
+        
+        if len(audio_data) < 100:  # Too small to be valid audio
+            logger.warning(f"Audio data too small: {len(audio_data)} bytes")
+            return "Audio file is empty or corrupted"
 
         try:
+            logger.info(f"Processing audio: {len(audio_data)} bytes")
             response = self.client.audio.transcriptions.create(
-                file=("audio.wav", audio_data),   # ✅ FIX
+                file=("audio.wav", audio_data),
                 model=self.model_name,
                 language=language,
                 response_format="verbose_json",
@@ -252,11 +257,16 @@ class SpeechToTextConverter:
                 text = getattr(response, "text", None)
 
             text = (text or "").strip()
-            return text if text else None
+            if not text:
+                logger.warning("Transcription returned empty text")
+                return "Could not understand audio"
+            
+            logger.info(f"✅ Transcription successful: {text[:100]}...")
+            return text
 
-        except Exception:
-            logger.exception("Groq transcription failed")
-            return None
+        except Exception as e:
+            logger.exception(f"Groq transcription failed: {e}")
+            return "Speech recognition service unavailable"
 
 
 

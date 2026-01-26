@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, status
 from cv_eval.schemas import CVEvaluationRequest, CVEvaluationResult
 from apps.api.eval_engine_instance import evaluation_engine  # ✅ import from shared
 
-router = APIRouter(prefix="/evaluation", tags=["evaluation"])
+router = APIRouter(prefix="/evaluation")
 
 @router.post("/cv")
 async def evaluate_cv_jd(request: CVEvaluationRequest):
