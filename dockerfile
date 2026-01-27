@@ -9,7 +9,7 @@ WORKDIR /app
 # =========================================
 # 🧱 Install system-level dependencies
 # =========================================
-# Required for lxml, pdf tools, tesseract, and python-docx
+# Required for lxml, pdf tools, tesseract, python-docx, and opencv
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     gcc \
@@ -22,6 +22,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tesseract-ocr \
     poppler-utils \
     antiword \
+    libgl1 \
+    libglib2.0-0 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
