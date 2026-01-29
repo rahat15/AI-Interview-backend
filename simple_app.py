@@ -12,8 +12,8 @@ from motor.motor_asyncio import AsyncIOMotorClient
 app = FastAPI(
     title="Interview Coach API",
     version="1.0.0",
+    root_path="/api",
     docs_url="/docs",
-    redoc_url="/redoc",
     openapi_url="/openapi.json",
 )
 
