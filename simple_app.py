@@ -9,7 +9,15 @@ from fastapi import FastAPI
 from motor.motor_asyncio import AsyncIOMotorClient
 
 # Simple app without complex dependencies
-app = FastAPI(title="Interview Coach API", version="1.0.0")
+app = FastAPI(
+    title="Interview Coach API",
+    version="1.0.0",
+    root_path="/api",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json",
+)
+
 
 # MongoDB connection
 client = None
