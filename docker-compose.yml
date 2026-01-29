@@ -18,6 +18,7 @@ services:
       - EMBEDDINGS_MODEL=local
       - GROQ_API_KEY=${GROQ_API_KEY}
       - LLM_MODEL=llama-3.1-8b-instant
+      - ROOT_PATH=/api
 
     volumes:
       - ./uploads:/app/uploads
