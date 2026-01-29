@@ -35,7 +35,13 @@ COPY cv-req.txt /app/cv-req.txt
 # Install pip first (but avoid breaking textract-tr)
 RUN pip install --no-cache-dir --upgrade "pip<24.1" wheel setuptools
 
-RUN pip install --no-cache-dir -r /app/cv-req.txt
+ENV PIP_NO_CACHE_DIR=1
+ENV TMPDIR=/mnt/docker/tmp
+RUN mkdir -p /mnt/docker/tmp
+
+RUN pip install --progress-bar off mediapipe opencv-python
+
+RUN pip install --progress-bar off -r /app/cv-req.txt
 
 # =========================================
 # 📁 Copy Application Code
