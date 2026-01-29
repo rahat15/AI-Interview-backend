@@ -62,12 +62,31 @@ class VoiceAnalyzer:
             if not audio_data:
                 return self._fail("no_audio_data")
 
+            logger.info(f"Processing audio data: {len(audio_data)} bytes")
+
             # -------- IN-MEMORY AUDIO DECODE (NO TEMP FILES) --------
-            audio_buffer = io.BytesIO(audio_data)
-            y, sr = sf.read(audio_buffer, dtype="float32")
+            try:
+                audio_buffer = io.BytesIO(audio_data)
+                y, sr = sf.read(audio_buffer, dtype="float32")
+            except Exception as e:
+                logger.warning(f"Failed to read audio with soundfile: {e}")
+                # Try alternative approach - save to temp file and read
+                import tempfile
+                try:
+                    with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp_file:
+                        tmp_file.write(audio_data)
+                        tmp_path = tmp_file.name
+                    
+                    y, sr = sf.read(tmp_path, dtype="float32")
+                    os.unlink(tmp_path)
+                except Exception as e2:
+                    logger.error(f"Failed to read audio from temp file: {e2}")
+                    return self._fail("audio_decode_failed")
 
             if y is None or len(y) == 0:
                 return self._fail("empty_audio_after_decode")
+
+            logger.info(f"Audio decoded successfully: {len(y)} samples at {sr}Hz")
 
             # Convert to mono if needed
             if y.ndim > 1:
@@ -79,6 +98,22 @@ class VoiceAnalyzer:
                 sr = self.sample_rate
 
             analysis = self._analyze_audio_features(y, sr, transcript)
+            
+            # Add plagiarism detection if transcript is available
+            if transcript and transcript.strip():
+                try:
+                    from interview.plagiarism_detector import plagiarism_detector
+                    plagiarism_result = plagiarism_detector.detect_plagiarism(transcript)
+                    analysis["plagiarism_analysis"] = plagiarism_result
+                except Exception as e:
+                    logger.warning(f"Plagiarism detection failed: {e}")
+                    analysis["plagiarism_analysis"] = {
+                        "plagiarism_detected": False,
+                        "risk_score": 0.0,
+                        "analysis_ok": False,
+                        "error": "Detection unavailable"
+                    }
+            
             analysis["analysis_ok"] = True
             return analysis
 
@@ -316,18 +351,16 @@ class VoiceAnalyzer:
     # ------------------------- FAILURE -------------------------
 
     def _fail(self, code: str) -> Dict[str, Any]:
+        logger.warning(f"Voice analysis failed with code: {code}")
         return {
             "analysis_ok": False,
             "error": code,
             "voice_scores": {
-                "raw": {k: 0.0 for k in self.SCORE_MAX},
-                "scaled_out_of_10": {k: 0.0 for k in self.SCORE_MAX},
-                "weights": {
-                    "fluency": 0.333,
-                    "clarity": 0.25,
-                    "confidence": 0.25,
-                    "pace": 0.167,
-                },
+                "fluency": 0.0,
+                "clarity": 0.0,
+                "confidence": 0.0,
+                "pace": 0.0,
+                "total": 0.0
             },
             "voice_metrics": {
                 "duration": 0.0,

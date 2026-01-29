@@ -419,7 +419,8 @@ class AdvancedInterviewManager:
 
         # ---------- Communication evaluation (voice-only) ----------
         # Ensure communication evaluation uses only audio features (no transcript passed)
-        voice = self._evaluate_voice_answer(audio_data=audio_data, audio_url=audio_url)
+        logger.info(f"Audio data size for voice analysis: {len(audio_data) if audio_data else 0} bytes")
+        voice = self._evaluate_voice_answer(audio_data=audio_data, audio_url=audio_url, transcript=answer)
 
         # ---------- Combine at higher level (non-overlapping inputs) ----------
         combined = self._combine_text_voice_scores(tech, voice)
@@ -487,55 +488,87 @@ class AdvancedInterviewManager:
             "total_possible": 5.0
         }
     
-    def _evaluate_voice_answer(self, audio_data: bytes = None, audio_url: str = None) -> Dict:
-        """Evaluate voice-based aspects of the answer"""
-        # Check if we have actual audio data
-        if not audio_data or len(audio_data) < 100:  # Less than 100 bytes is likely empty
-            return {
-                "voice_scores": {
-                    "fluency": 0.0,
-                    "clarity": 0.0,
-                    "confidence": 0.0,
-                    "pace": 0.0,
-                    "total": 0.0
-                },
-                "voice_metrics": {
-                    "duration": 0,
-                    "speech_rate": 0,
-                    "avg_pitch": 0,
-                    "pitch_variation": 0,
-                    "avg_energy": 0,
-                    "pause_ratio": 0,
-                    "speech_segments": 0
-                }
+    def _evaluate_voice_answer(self, audio_data: bytes = None, audio_url: str = None, transcript: str = None) -> Dict:
+        """Evaluate voice-based aspects of the answer with plagiarism detection"""
+        # Initialize result structure
+        result = {
+            "voice_scores": {
+                "fluency": 0.0,
+                "clarity": 0.0,
+                "confidence": 0.0,
+                "pace": 0.0,
+                "total": 0.0
+            },
+            "voice_metrics": {
+                "duration": 0,
+                "speech_rate": 0,
+                "avg_pitch": 0,
+                "pitch_variation": 0,
+                "avg_energy": 0,
+                "pause_ratio": 0,
+                "speech_segments": 0
+            },
+            "plagiarism_analysis": {
+                "plagiarism_detected": False,
+                "risk_score": 0.0,
+                "analysis_ok": False,
+                "error": "No analysis performed"
             }
+        }
         
-        try:
-            from interview.voice_analyzer import voice_analyzer
-            return voice_analyzer.analyze_voice(audio_data=audio_data, audio_url=audio_url)
-        except ImportError:
-            # Fallback with minimal scores for no audio
-            return {
-                "voice_scores": {
-                    "fluency": 0.5,
-                    "clarity": 0.3,
-                    "confidence": 0.3,
-                    "pace": 0.2,
-                    "total": 1.3
-                },
-                "voice_metrics": {
-                    "duration": 0,
-                    "speech_rate": 0,
-                    "avg_pitch": 0,
-                    "pitch_variation": 0,
-                    "avg_energy": 0,
-                    "pause_ratio": 0,
-                    "speech_segments": 0
+        # Always try plagiarism detection if we have transcript
+        if transcript and transcript.strip() and len(transcript.strip()) > 5:
+            try:
+                from interview.plagiarism_detector import plagiarism_detector
+                plagiarism_result = plagiarism_detector.detect_plagiarism(transcript)
+                result["plagiarism_analysis"] = plagiarism_result
+                logger.info(f"Plagiarism analysis completed for text: '{transcript[:50]}...'")
+            except Exception as e:
+                logger.warning(f"Plagiarism detection failed: {e}")
+                result["plagiarism_analysis"] = {
+                    "plagiarism_detected": False,
+                    "risk_score": 0.0,
+                    "analysis_ok": False,
+                    "error": f"Detection failed: {str(e)}"
                 }
-            }
+        
+        # Try voice analysis if we have audio data
+        if audio_data and len(audio_data) >= 100:
+            logger.info(f"Audio data size: {len(audio_data)} bytes")
+            try:
+                from interview.voice_analyzer import VoiceAnalyzer
+                analyzer = VoiceAnalyzer()
+                voice_result = analyzer.analyze_voice(audio_data=audio_data, audio_url=audio_url, transcript=transcript)
+                
+                # Extract the scaled scores (out of 10) for consistency
+                voice_scores = voice_result.get("voice_scores", {})
+                if "scaled_out_of_10" in voice_scores:
+                    scaled = voice_scores["scaled_out_of_10"]
+                    result["voice_scores"] = {
+                        "fluency": scaled.get("fluency", 0),
+                        "clarity": scaled.get("clarity", 0),
+                        "confidence": scaled.get("confidence", 0),
+                        "pace": scaled.get("pace", 0),
+                        "total": scaled.get("total", 0)
+                    }
+                
+                result["voice_metrics"] = voice_result.get("voice_metrics", result["voice_metrics"])
+                
+                # Use plagiarism analysis from voice analyzer if available and better
+                voice_plagiarism = voice_result.get("plagiarism_analysis", {})
+                if voice_plagiarism.get("analysis_ok", False):
+                    result["plagiarism_analysis"] = voice_plagiarism
+                    
+            except Exception as e:
+                logger.exception(f"Voice analysis failed: {e}")
+                # Keep the existing result structure with zeros
+        else:
+            logger.info(f"No valid audio data for voice analysis: {len(audio_data) if audio_data else 0} bytes")
+        
+        return result
     
-    def _combine_text_voice_scores(self, tech_eval: Dict, voice_eval: Dict) -> Dict:
-        """Combine technical (LLM) and voice evaluations into a final, non-overlapping score."""
+    def _combine_text_voice_scores(self, tech_eval: Dict, voice_eval: Dict, video_analysis: Dict = None) -> Dict:
+        """Combine technical (LLM), voice, and video evaluations with cheating detection."""
 
         # Text/technical mapping: technical_depth (0-10) -> text_score (0-5)
         tech_depth = int(tech_eval.get("technical_depth", 0))
@@ -545,15 +578,53 @@ class AdvancedInterviewManager:
         raw_text_eval = tech_eval.get("raw") or {}
 
         voice_score = voice_eval.get("voice_scores", {}).get("total", 0.0)  # Out of 6
+        plagiarism_data = voice_eval.get("plagiarism_analysis", {})
+        
+        # Video analysis for cheating detection
+        video_cheating_risk = 0
+        if video_analysis:
+            cheating_detection = video_analysis.get("cheating_detection", {})
+            video_cheating_risk = cheating_detection.get("risk_score", 0) / 100.0  # Normalize to 0-1
 
-        # If no voice data, slightly penalize overall outcome
+        # Plagiarism risk from voice analysis
+        plagiarism_risk = plagiarism_data.get("risk_score", 0.0)
+        plagiarism_detected = plagiarism_data.get("plagiarism_detected", False)
+        
+        # Combined cheating detection
+        # If poor eye contact AND high plagiarism risk, increase cheating suspicion
+        eye_contact_score = 0
+        if video_analysis:
+            eye_contact_data = video_analysis.get("eye_contact", {})
+            eye_contact_score = eye_contact_data.get("average_score", 0)
+        
+        # Cheating logic: Poor eye contact (< 0.4) + High plagiarism (> 0.6) = Cheating
+        is_cheating = False
+        cheating_confidence = "Low"
+        
+        if eye_contact_score < 0.4 and plagiarism_risk > 0.6:
+            is_cheating = True
+            cheating_confidence = "High"
+        elif video_cheating_risk > 0.5 or plagiarism_risk > 0.7:
+            is_cheating = True
+            cheating_confidence = "Medium"
+        elif (eye_contact_score < 0.3 and plagiarism_risk > 0.4) or video_cheating_risk > 0.3:
+            is_cheating = True
+            cheating_confidence = "Low"
+
+        # Calculate base score - if no voice data, use text score only
         if voice_score == 0.0:
-            total_score = max(0.5, text_score * 0.6)  # 40% penalty for no voice
+            # No penalty for missing voice if we have valid text
+            total_score = text_score * 2  # Scale text score to 0-10 range
         else:
             # Combined score out of 11, scaled to 10
             total_score = min(10.0, ((text_score + voice_score) / 11.0) * 10.0)
+        
+        # Apply cheating penalty
+        if is_cheating:
+            cheating_penalty = 0.3 if cheating_confidence == "High" else 0.2 if cheating_confidence == "Medium" else 0.1
+            total_score = max(0.0, total_score * (1 - cheating_penalty))
 
-        # Build feedback
+        # Build feedback based on actual content quality
         feedback_parts = []
 
         # Technical feedback (based on technical depth)
@@ -561,27 +632,45 @@ class AdvancedInterviewManager:
             feedback_parts.append("Strong technical depth")
         elif tech_depth >= 5:
             feedback_parts.append("Adequate technical understanding")
+        elif tech_depth >= 2:
+            feedback_parts.append("Limited technical depth")
         else:
-            feedback_parts.append("Technical depth could be improved")
+            feedback_parts.append("No technical content provided")
 
-        # Voice feedback
+        # Voice feedback - only if we actually have voice data
         voice_scores = voice_eval.get("voice_scores", {})
-        if voice_score == 0.0:
-            feedback_parts.append("No voice data detected")
-        elif voice_scores.get("raw", {}).get("fluency", 0) >= 1.5 or voice_scores.get("scaled_out_of_10", {}).get("fluency", 0) >= 7.0:
-            feedback_parts.append("Good speech fluency")
-        elif voice_scores.get("raw", {}).get("fluency", 0) < 1.0:
-            feedback_parts.append("Could improve speech fluency")
+        if voice_score > 0.0:
+            if voice_scores.get("fluency", 0) >= 7.0:
+                feedback_parts.append("Good speech fluency")
+            elif voice_scores.get("fluency", 0) < 5.0:
+                feedback_parts.append("Could improve speech fluency")
 
-        if voice_score > 0 and voice_scores.get("scaled_out_of_10", {}).get("confidence", 0) >= 7.0:
-            feedback_parts.append("Confident delivery")
-        elif voice_score > 0 and voice_scores.get("scaled_out_of_10", {}).get("confidence", 0) < 5.0:
-            feedback_parts.append("Could sound more confident")
+            if voice_scores.get("confidence", 0) >= 7.0:
+                feedback_parts.append("Confident delivery")
+            elif voice_scores.get("confidence", 0) < 5.0:
+                feedback_parts.append("Could sound more confident")
+        else:
+            # Only mention voice issue if it's actually missing
+            voice_metrics = voice_eval.get("voice_metrics", {})
+            if voice_metrics.get("duration", 0) == 0:
+                feedback_parts.append("Voice analysis unavailable")
+        
+        # Plagiarism feedback
+        if plagiarism_detected:
+            feedback_parts.append("Potential plagiarism detected")
+        elif plagiarism_risk > 0.4:
+            feedback_parts.append("Some similarity to common responses")
+        
+        # Cheating feedback
+        if is_cheating:
+            feedback_parts.append(f"Cheating suspected ({cheating_confidence.lower()} confidence)")
 
-        # Suggestions
+        # Suggestions based on actual issues
         suggestions = []
         if tech_depth < 5:
             suggestions.append("Provide more technical specifics and examples")
+        if tech_depth == 0:
+            suggestions.append("Answer the question directly and professionally")
 
         # Try to use breakdown from raw_text_eval if available
         try:
@@ -592,18 +681,36 @@ class AdvancedInterviewManager:
         except Exception:
             pass
 
-        # Voice-based suggestions
-        if voice_score == 0.0:
+        # Voice-based suggestions - only if voice analysis actually failed
+        if voice_score == 0.0 and voice_eval.get("voice_metrics", {}).get("duration", 0) == 0:
             suggestions.append("Ensure audio is properly recorded and transmitted")
-        elif voice_scores.get("scaled_out_of_10", {}).get("pace", 0) < 6.0:
-            suggestions.append("Adjust speaking pace - aim for ~140-170 WPM")
-        elif voice_scores.get("scaled_out_of_10", {}).get("clarity", 0) < 6.0:
-            suggestions.append("Speak more clearly and maintain consistent volume")
+        elif voice_score > 0:
+            if voice_scores.get("pace", 0) < 6.0:
+                suggestions.append("Adjust speaking pace - aim for ~140-170 WPM")
+            elif voice_scores.get("clarity", 0) < 6.0:
+                suggestions.append("Speak more clearly and maintain consistent volume")
+        
+        # Plagiarism suggestions
+        if plagiarism_detected:
+            suggestions.append("Provide more original and personalized responses")
+        elif plagiarism_risk > 0.4:
+            suggestions.append("Avoid generic phrases and provide unique insights")
+        
+        # Cheating suggestions
+        if is_cheating:
+            suggestions.append("Maintain eye contact with camera and provide original answers")
 
         return {
             "total_score": round(total_score, 1),
             "feedback": " | ".join(feedback_parts) if feedback_parts else "No meaningful response detected",
-            "suggestions": suggestions[:4]  # Limit to top 4
+            "suggestions": suggestions[:4],  # Limit to top 4
+            "cheating_detection": {
+                "is_cheating": is_cheating,
+                "confidence": cheating_confidence,
+                "plagiarism_risk": round(plagiarism_risk, 2),
+                "video_risk": round(video_cheating_risk, 2),
+                "eye_contact_score": round(eye_contact_score, 2)
+            }
         }
     
     def _score_relevance(self, question_lower: str, answer_lower: str, cv_analysis: Dict) -> float:
