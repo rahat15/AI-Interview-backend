@@ -544,7 +544,12 @@ class AdvancedInterviewManager:
         # If fallback local 'raw' exists, try to use its finer-grained breakdown for suggestions
         raw_text_eval = tech_eval.get("raw") or {}
 
-        voice_score = voice_eval.get("voice_scores", {}).get("total", 0.0)  # Out of 6
+        voice_data = voice_eval.get("voice_scores", {})
+        # Handle both flat (legacy) and nested (new) structures
+        if "raw" in voice_data:
+             voice_score = voice_data.get("raw", {}).get("total", 0.0)
+        else:
+             voice_score = voice_data.get("total", 0.0)
 
         # If no voice data, slightly penalize overall outcome
         if voice_score == 0.0:

@@ -248,13 +248,20 @@ class SpeechToTextConverter:
 
             if isinstance(response, dict):
                 text = response.get("text")
-
                 if not text and "segments" in response:
                     text = " ".join(
                         seg.get("text", "") for seg in response.get("segments", [])
                     )
             else:
+                # With Groq Python SDK v1.0+, response is a Transcription object
+                # It might have a 'text' attribute.
                 text = getattr(response, "text", None)
+                if text is None:
+                     logger.warning(f"ASR response object content: {dir(response)}")
+            
+            # Explicitly check for string "None." which might be a hallucination or artifact
+            if text == "None." or text == "None":
+                 text = ""
 
             text = (text or "").strip()
             if not text:

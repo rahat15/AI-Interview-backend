@@ -304,15 +304,27 @@ class LLMScorer:
         else:
             prompt = CV_ONLY_EVALUATION_PROMPT.format(cv_text=cv_text)
 
-        raw = self._call_llm(prompt)
-        cleaned = self._extract_json_from_response(raw)
-        return json.loads(cleaned)
+        return self._generate_and_parse_json(prompt)
 
     # ---------- CV only (legacy alias) ----------
     def evaluate_cv_only(self, cv_text: str) -> dict:
         return self.unified_evaluate(cv_text=cv_text, jd_text="")
 
     # ---------- Internals ----------
+    def _generate_and_parse_json(self, prompt: str) -> dict:
+        """Retry LLM call if JSON parsing fails."""
+        for attempt in range(3):
+            try:
+                raw = self._call_llm(prompt)
+                cleaned = self._extract_json_from_response(raw)
+                return json.loads(cleaned)
+            except json.JSONDecodeError as e:
+                logger.warning(f"JSON parsing failed (attempt {attempt+1}/3): {e}. Retrying.")
+                if attempt == 2:
+                    logger.error(f"Final JSON parsing failure. Raw response: {raw}")
+                    raise
+        raise ValueError("Failed to generate valid JSON")
+
     def _call_llm(self, prompt: str) -> str:
         for attempt in range(3):
             try:
@@ -324,6 +336,7 @@ class LLMScorer:
                     ],
                     temperature=self.temperature,
                     max_tokens=3500,
+                    response_format={"type": "json_object"},
                 )
                 return resp.choices[0].message.content.strip()
             except Exception as e:
@@ -337,9 +350,7 @@ class LLMScorer:
             raise ValueError("Both CV text and JD text are required for improvement")
 
         prompt = IMPROVEMENT_PROMPT.format(cv_text=cv_text, jd_text=jd_text)
-        raw = self._call_llm(prompt)
-        cleaned = self._extract_json_from_response(raw)
-        return json.loads(cleaned)
+        return self._generate_and_parse_json(prompt)
 
 
     @staticmethod
