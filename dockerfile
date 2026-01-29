@@ -54,4 +54,5 @@ EXPOSE 8000
 # 🚀 Start FastAPI App
 # =========================================
 # Note: --reload is NOT recommended in production
-CMD ["uvicorn", "apps.api.app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD [ "uvicorn", "apps.api.app:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*"]
+
