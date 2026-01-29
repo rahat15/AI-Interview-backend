@@ -8,11 +8,14 @@ import os
 from fastapi import FastAPI
 from motor.motor_asyncio import AsyncIOMotorClient
 
-# Simple app without complex dependencies
 app = FastAPI(
     title="AI Interview Coach API",
     version="1.0.0",
+    swagger_ui_parameters={
+        "url": "/api/openapi.json"
+    }
 )
+
 
 
 
