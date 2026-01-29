@@ -14,6 +14,7 @@ app = FastAPI(
     version="1.0.0",
     #root_path="/api",
     docs_url="/docs",
+    redoc_url="/redoc",
     openapi_url="/openapi.json",
 )
 
