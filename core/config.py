@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     # --- LLM / Evaluation ---
     llm_model: Optional[str] = Field(default=None, env="LLM_MODEL")
     groq_api_key: Optional[str] = Field(default=None, env="GROQ_API_KEY")
+    gemini_api_key: Optional[str] = Field(default=None, env="GEMINI_API_KEY")
     evaluation_timeout: int = Field(default=300, env="EVALUATION_TIMEOUT_SECONDS")
 
     # --- Redis ---

@@ -18,6 +18,7 @@ from apps.api.routers.overview import router as overview_router
 from apps.api.routers.jd import router as jd_router
 from apps.api.routers.audio import router as audio_router
 from apps.api.routers.resume import router as resume_router
+from apps.api.routers.interview_v2 import router as interview_v2_router
 from apps.api.interview_routes import router as interview_router
 
 # DB
@@ -36,12 +37,19 @@ print("🌐 ROOT_PATH:", ROOT_PATH or "(none)")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("🚀 Starting up...")
-    await connect_to_mongo()
-    logger.info("✅ Mongo connected")
+    try:
+        await connect_to_mongo()
+        logger.info("✅ Mongo connected")
+    except Exception as e:
+        logger.warning(f"⚠️  MongoDB connection failed: {e}")
+        logger.info("⚠️  Continuing without MongoDB - V2 endpoints will work (in-memory sessions)")
     yield
     logger.info("🛑 Shutting down...")
-    await close_mongo_connection()
-    logger.info("✅ Mongo disconnected")
+    try:
+        await close_mongo_connection()
+        logger.info("✅ Mongo disconnected")
+    except Exception as e:
+        logger.warning(f"⚠️  MongoDB disconnect error: {e}")
 
 
 def create_app() -> FastAPI:
@@ -88,6 +96,9 @@ def create_app() -> FastAPI:
     app.include_router(audio_router, prefix="/v1/audio", tags=["Audio"])
     app.include_router(resume_router, prefix="/v1", tags=["Resume"])
     app.include_router(interview_router, prefix="/v1/interview", tags=["Interview"])
+    
+    # V2 Interview - Gemini-powered
+    app.include_router(interview_v2_router, tags=["Interview V2"])
 
     # Legacy
     app.include_router(interview_router, prefix="/interview", tags=["Interview (Legacy)"])

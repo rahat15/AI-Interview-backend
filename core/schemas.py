@@ -242,3 +242,90 @@ class PaginatedResponse(BaseSchema):
     page: int
     size: int
     pages: int
+
+
+# V2 Interview Schemas (Gemini-based)
+class InterviewV2StartRequest(BaseSchema):
+    resume_text: Optional[str] = Field(None, description="Resume content (full text) - optional if file uploaded")
+    jd_text: Optional[str] = Field(None, description="Job Description content (full text) - optional if file uploaded")
+    role: str = Field(..., description="Job role/position")
+    company: str = Field(default="the company", description="Company name")
+
+
+class InterviewV2StartResponse(BaseSchema):
+    session_id: str
+    status: str
+    question: str
+    question_number: int
+    message: str = "Interview started successfully"
+
+
+class InterviewV2AnswerRequest(BaseSchema):
+    answer: str = Field(..., description="Candidate's answer to the question")
+
+
+class InterviewV2AnswerResponse(BaseSchema):
+    session_id: str
+    status: str
+    question: str
+    question_number: int
+
+
+class VideoAnalytics(BaseSchema):
+    confidence_score: float
+    eye_contact_percentage: int
+    posture_score: float
+    engagement_level: str
+    speech_pace: str
+    filler_words_count: int
+    smile_frequency: str
+    facial_expressions: Dict[str, int]
+    body_language: Dict[str, int]
+    energy_level: str
+    professionalism_score: float
+
+
+class SkillAssessment(BaseSchema):
+    score: float
+    assessment: str
+
+
+class InterviewEvaluation(BaseSchema):
+    overall_score: float
+    recommendation: str
+    summary: str
+    strengths: List[str]
+    weaknesses: List[str]
+    technical_skills: SkillAssessment
+    communication_skills: SkillAssessment
+    problem_solving: SkillAssessment
+    cultural_fit: SkillAssessment
+    experience_relevance: SkillAssessment
+    detailed_feedback: str
+    improvement_areas: List[str]
+    key_highlights: List[str]
+
+
+class ConversationTurn(BaseSchema):
+    role: str
+    content: str
+
+
+class InterviewV2CompleteResponse(BaseSchema):
+    session_id: str
+    status: str
+    interview_duration_minutes: int
+    total_questions: int
+    role: str
+    company: str
+    evaluation: InterviewEvaluation
+    video_analytics: VideoAnalytics
+    conversation: List[ConversationTurn]
+    metrics: Dict[str, float]
+
+
+# Separate schema for JSON-based start (resume/jd as text)
+# Note: JSON/text-only start schema removed to avoid duplicate OpenAPI
+# exposure. The multipart `/v2/interview/start` endpoint should be used
+# for file uploads (PDF/DOCX/TXT). A hidden JSON start endpoint exists
+# in the router for non-OpenAPI use-cases.
