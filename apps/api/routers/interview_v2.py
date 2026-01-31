@@ -109,7 +109,7 @@ async def fetch_jd_content(jd_id: str) -> str:
 
 
 async def extract_text_from_file(file: UploadFile) -> str:
-    """Extract text from uploaded file (PDF, DOCX, TXT)"""
+    """Extract text from uploaded file (PDF, DOCX, TXT) with robust error handling"""
     content = await file.read()
     filename = file.filename.lower()
     
@@ -118,15 +118,54 @@ async def extract_text_from_file(file: UploadFile) -> str:
         if filename.endswith('.txt'):
             return content.decode('utf-8', errors='ignore')
         
-        # PDF files
+        # PDF files - with multiple fallback strategies
         elif filename.endswith('.pdf'):
-            from pypdf import PdfReader
             import io
             pdf_file = io.BytesIO(content)
-            reader = PdfReader(pdf_file)
             text = ""
-            for page in reader.pages:
-                text += page.extract_text() + "\n"
+            
+            # Try pypdf first
+            try:
+                from pypdf import PdfReader
+                reader = PdfReader(pdf_file, strict=False)
+                for page_num, page in enumerate(reader.pages):
+                    try:
+                        page_text = page.extract_text()
+                        if page_text:
+                            text += page_text + "\n"
+                    except Exception as page_error:
+                        print(f"Warning: Could not extract page {page_num}: {page_error}")
+                        continue
+                
+                if text.strip():
+                    return text.strip()
+            except Exception as pypdf_error:
+                print(f"PyPDF extraction failed: {pypdf_error}")
+            
+            # Fallback: Try pdfplumber
+            try:
+                import pdfplumber
+                pdf_file.seek(0)
+                with pdfplumber.open(pdf_file) as pdf:
+                    for page in pdf.pages:
+                        try:
+                            page_text = page.extract_text()
+                            if page_text:
+                                text += page_text + "\n"
+                        except:
+                            continue
+                    if text.strip():
+                        return text.strip()
+            except Exception as plumber_error:
+                print(f"pdfplumber extraction failed: {plumber_error}")
+            
+            # If all methods failed
+            if not text.strip():
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Could not extract text from PDF '{file.filename}'. The file may be corrupted, image-based (scanned), or password-protected. Please try: 1) Re-saving the PDF, 2) Using a text-based PDF, or 3) Converting to TXT/DOCX format."
+                )
+            
             return text.strip()
         
         # Word documents
@@ -136,6 +175,13 @@ async def extract_text_from_file(file: UploadFile) -> str:
             doc_file = io.BytesIO(content)
             doc = Document(doc_file)
             text = "\n".join([paragraph.text for paragraph in doc.paragraphs])
+            
+            if not text.strip():
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"No text content found in '{file.filename}'. The document may be empty or contain only images."
+                )
+            
             return text.strip()
         
         else:

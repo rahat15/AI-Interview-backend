@@ -27,6 +27,7 @@ passlib[bcrypt]==1.7.4
 # Document processing
 pypdf==4.1.0
 python-docx==1.1.2
+pdfplumber==0.11.0
 
 # Agentic & LangChain stack (align on 0.3.x family for compatibility)
 langchain==0.3.27
@@ -76,6 +77,7 @@ python-dotenv==1.0.1
 # Audio processing for voice analysis
 librosa==0.10.1
 soundfile==0.12.1
+pydub==0.25.1
 
 # Video processing and analysis
 opencv-python==4.10.0.84

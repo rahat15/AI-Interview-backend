@@ -69,6 +69,12 @@ Start the interview now. Introduction + First Question only."""
         response = chat.send_message(system_context)
         first_question = response.text
         
+        print(f"\n{'='*60}")
+        print(f"GEMINI RESPONSE (First Question):")
+        print(f"{'='*60}")
+        print(f"{first_question}")
+        print(f"{'='*60}\n")
+        
         # Store session
         self.sessions[session_id] = {
             "session_id": session_id,
@@ -82,7 +88,9 @@ Start the interview now. Introduction + First Question only."""
             ],
             "question_count": 1,
             "system_context": system_context,
-            "voice_scores": []
+            "voice_scores": [],
+            "status": "active",
+            "completion_reason": None
         }
         
         return {
@@ -97,7 +105,13 @@ Start the interview now. Introduction + First Question only."""
         prompt = "Running transcription. Please output ONLY the exact word-for-word transcript of this audio. Do not add any conversational filler."
         try:
             response = self.model.generate_content([prompt, {"mime_type": mime_type, "data": audio_bytes}])
-            return response.text.strip()
+            transcribed_text = response.text.strip()
+            print(f"\n{'='*60}")
+            print(f"TRANSCRIBED TEXT FROM AUDIO:")
+            print(f"{'='*60}")
+            print(f"{transcribed_text}")
+            print(f"{'='*60}\n")
+            return transcribed_text
         except Exception as e:
             print(f"Transcription error: {e}")
             return f"[Audio Transcription Failed]"
@@ -173,12 +187,35 @@ Keep your response conversational and professional. Focus on one clear question.
         response = chat.send_message(prompt)
         next_question = response.text
         
+        print(f"\n{'='*60}")
+        print(f"GEMINI RESPONSE (Next Question):")
+        print(f"{'='*60}")
+        print(f"{next_question}")
+        print(f"{'='*60}\n")
+        
         # Update session
         session["question_count"] += 1
         session["history"].append({
             "role": "interviewer",
             "content": next_question
         })
+        
+        # Check if interview should auto-complete
+        should_complete, completion_reason = self._should_complete_interview(
+            session, answer, next_question
+        )
+        
+        if should_complete:
+            session["status"] = "completed"
+            session["completion_reason"] = completion_reason
+            return {
+                "session_id": session_id,
+                "status": "completed",
+                "question": next_question,
+                "question_number": session["question_count"],
+                "completion_reason": completion_reason,
+                "message": "Interview completed. Call /complete endpoint to get final evaluation."
+            }
         
         return {
             "session_id": session_id,
@@ -362,6 +399,62 @@ Provide ONLY the JSON, no other text."""
         
         return result
     
+    def _should_complete_interview(
+        self, 
+        session: Dict[str, Any], 
+        candidate_answer: str, 
+        interviewer_response: str
+    ) -> tuple[bool, str]:
+        """
+        Determine if interview should auto-complete
+        
+        Returns:
+            (should_complete: bool, reason: str)
+        """
+        # Check 1: Candidate explicitly requests to end
+        end_phrases = [
+            "end the interview",
+            "finish the interview",
+            "stop the interview",
+            "don't want to continue",
+            "want to end",
+            "want to stop",
+            "that's all",
+            "no more questions"
+        ]
+        
+        answer_lower = candidate_answer.lower()
+        for phrase in end_phrases:
+            if phrase in answer_lower:
+                return (True, "candidate_requested_end")
+        
+        # Check 2: Interviewer signals conclusion
+        conclusion_phrases = [
+            "thank you for your time",
+            "thanks for joining",
+            "that concludes",
+            "end of the interview",
+            "we'll be in touch",
+            "we'll get back to you",
+            "concludes our interview",
+            "finish up here",
+            "wrap up",
+            "that's all the questions"
+        ]
+        
+        response_lower = interviewer_response.lower()
+        for phrase in conclusion_phrases:
+            if phrase in response_lower:
+                return (True, "interviewer_concluded")
+        
+        # Check 3: Maximum questions reached (prevent infinite interviews)
+        max_questions = 10
+        if session["question_count"] >= max_questions:
+            return (True, "max_questions_reached")
+        
+        # Interview continues
+        return (False, "")
+
     def get_session_status(self, session_id: str) -> Dict[str, Any]:
         """Get current session status"""
         

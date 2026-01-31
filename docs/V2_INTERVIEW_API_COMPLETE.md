@@ -13,8 +13,9 @@ Complete API reference for `/v2/interview` endpoints with full request/response 
 2. [Submit Answer](#2-submit-answer)
 3. [Get Status](#3-get-status--current-question)
 4. [Complete Interview](#4-complete-interview)
-5. [Audio Support](#audio--voice-support)
-6. [Known Issues](#known-issues--troubleshooting)
+5. [Interview Completion Logic](#interview-completion-logic)
+6. [Audio Support](#audio--voice-support)
+7. [Known Issues](#known-issues--troubleshooting)
 
 ---
 
@@ -129,6 +130,18 @@ curl -X POST "http://127.0.0.1:8000/v2/interview/{SESSION_ID}/answer" \
 }
 ```
 
+**Success Response (200) - Interview Auto-Completed:**
+```json
+{
+  "session_id": "039b4112-ce8a-4575-b137-64cec08bfabc",
+  "status": "completed",
+  "question": "Thank you for your time today!",
+  "question_number": 5,
+  "completion_reason": "interviewer_concluded",
+  "message": "Interview completed. Call /complete endpoint to get final evaluation."
+}
+```
+
 **Error Responses:**
 
 400 Bad Request:
@@ -155,6 +168,89 @@ curl -X POST "http://127.0.0.1:8000/v2/interview/{SESSION_ID}/answer" \
 **Notes:**
 - When audio is uploaded: transcription via Gemini + voice analysis (fluency, clarity, confidence, pace)
 - Voice metrics influence follow-up questions and are included in final report
+- **Interview may auto-complete** if candidate requests to end or interviewer concludes
+- Check `status` field in response - if `"completed"`, call `/complete` endpoint for final report
+
+---
+
+## Interview Completion Logic
+
+### 🤖 Automatic Completion (NEW!)
+
+The interview automatically detects completion in **3 scenarios**:
+
+#### 1️⃣ Candidate Requests to End
+If candidate says: "I want to end the interview", "stop", "don't want to continue", etc.
+
+**Example:**
+```bash
+curl -X POST "http://127.0.0.1:8000/v2/interview/$SESSION/answer" \
+  -F "answer=I don't want to continue this interview anymore."
+```
+
+**Response:**
+```json
+{
+  "status": "completed",
+  "completion_reason": "candidate_requested_end",
+  "message": "Interview completed. Call /complete endpoint to get final evaluation."
+}
+```
+
+#### 2️⃣ Interviewer Concludes Naturally
+If Gemini says: "Thank you for your time", "We'll be in touch", "That concludes...", etc.
+
+**Response:**
+```json
+{
+  "status": "completed",
+  "completion_reason": "interviewer_concluded",
+  "message": "Interview completed. Call /complete endpoint to get final evaluation."
+}
+```
+
+#### 3️⃣ Maximum Questions Reached
+After **10 questions**, interview auto-completes (safety limit).
+
+**Response:**
+```json
+{
+  "status": "completed",
+  "completion_reason": "max_questions_reached",
+  "message": "Interview completed. Call /complete endpoint to get final evaluation."
+}
+```
+
+### 📋 What to Do When Auto-Completed
+
+When you see `"status": "completed"` in the `/answer` response:
+
+1. **Stop submitting answers** (session is closed)
+2. **Call `/complete` endpoint** to get full evaluation report
+3. **Save the report** for analysis
+
+**Example Flow:**
+```bash
+# Submit answer
+RESPONSE=$(curl -s -X POST ".../answer" -F "answer=My answer")
+
+# Check status
+STATUS=$(echo $RESPONSE | jq -r '.status')
+
+if [ "$STATUS" == "completed" ]; then
+  echo "Interview auto-completed!"
+  
+  # Get final report
+  curl -X POST ".../$SESSION/complete" \
+    -H "Content-Type: application/json" \
+    -d '{}' > report.json
+fi
+```
+
+### 📖 Full Documentation
+
+For complete details, examples, and best practices, see:
+**[Interview Completion Guide](./INTERVIEW_COMPLETION_GUIDE.md)**
 
 ---
 

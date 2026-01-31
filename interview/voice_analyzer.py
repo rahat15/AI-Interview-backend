@@ -21,6 +21,7 @@ import librosa
 import numpy as np
 import requests
 import soundfile as sf
+from pydub import AudioSegment
 
 
 logger = logging.getLogger(__name__)
@@ -63,8 +64,22 @@ class VoiceAnalyzer:
                 return self._fail("no_audio_data")
 
             # -------- IN-MEMORY AUDIO DECODE (NO TEMP FILES) --------
-            audio_buffer = io.BytesIO(audio_data)
-            y, sr = sf.read(audio_buffer, dtype="float32")
+            # Convert any audio format to WAV using pydub, then read with soundfile
+            try:
+                audio_buffer = io.BytesIO(audio_data)
+                # Load audio with pydub (auto-detects format)
+                audio_segment = AudioSegment.from_file(audio_buffer)
+                
+                # Convert to WAV in memory
+                wav_buffer = io.BytesIO()
+                audio_segment.export(wav_buffer, format="wav")
+                wav_buffer.seek(0)
+                
+                # Now read WAV with soundfile
+                y, sr = sf.read(wav_buffer, dtype="float32")
+            except Exception as format_error:
+                logger.error(f"Audio format conversion failed: {format_error}")
+                return self._fail("audio_format_conversion_failed")
 
             if y is None or len(y) == 0:
                 return self._fail("empty_audio_after_decode")
