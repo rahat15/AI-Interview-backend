@@ -5,12 +5,18 @@ Handles contextual interview sessions with JD and Resume analysis
 
 import os
 import json
+import pickle
+from pathlib import Path
 from typing import Dict, Any, List, Optional
 import google.generativeai as genai
 from core.config import settings
 
 # Configure Gemini
 genai.configure(api_key=settings.gemini_api_key)
+
+# Session persistence directory
+SESSION_DIR = Path("interview_sessions")
+SESSION_DIR.mkdir(exist_ok=True)
 
 
 class GeminiInterviewer:
@@ -92,6 +98,9 @@ Start the interview now. Introduction + First Question only."""
             "status": "active",
             "completion_reason": None
         }
+        
+        # Save session to disk
+        self._save_session(session_id)
         
         return {
             "session_id": session_id,
@@ -208,6 +217,7 @@ Keep your response conversational and professional. Focus on one clear question.
         if should_complete:
             session["status"] = "completed"
             session["completion_reason"] = completion_reason
+            self._save_session(session_id)  # Save completed state
             return {
                 "session_id": session_id,
                 "status": "completed",
@@ -216,6 +226,9 @@ Keep your response conversational and professional. Focus on one clear question.
                 "completion_reason": completion_reason,
                 "message": "Interview completed. Call /complete endpoint to get final evaluation."
             }
+        
+        # Save session progress
+        self._save_session(session_id)
         
         return {
             "session_id": session_id,
@@ -234,6 +247,10 @@ Keep your response conversational and professional. Focus on one clear question.
         Returns:
             Complete interview analytics
         """
+        
+        # Try loading from disk if not in memory
+        if session_id not in self.sessions:
+            self._load_session(session_id)
         
         if session_id not in self.sessions:
             raise ValueError(f"Session {session_id} not found")
@@ -454,9 +471,48 @@ Provide ONLY the JSON, no other text."""
         
         # Interview continues
         return (False, "")
+    
+    def _save_session(self, session_id: str):
+        """Save session to disk for persistence"""
+        try:
+            if session_id in self.sessions:
+                session = self.sessions[session_id].copy()
+                # Remove chat object (can't pickle)
+                chat_obj = session.pop("chat", None)
+                
+                session_file = SESSION_DIR / f"{session_id}.json"
+                with open(session_file, 'w') as f:
+                    json.dump(session, f)
+                
+                # Restore chat
+                if chat_obj:
+                    self.sessions[session_id]["chat"] = chat_obj
+        except Exception as e:
+            print(f"Warning: Could not save session {session_id}: {e}")
+    
+    def _load_session(self, session_id: str):
+        """Load session from disk"""
+        try:
+            session_file = SESSION_DIR / f"{session_id}.json"
+            if session_file.exists():
+                with open(session_file, 'r') as f:
+                    session = json.load(f)
+                
+                # Recreate chat from history
+                chat = self.model.start_chat(history=[])
+                # We can't restore exact chat state, but we have the history
+                
+                session["chat"] = chat
+                self.sessions[session_id] = session
+                print(f"✅ Loaded session {session_id} from disk")
+        except Exception as e:
+            print(f"Warning: Could not load session {session_id}: {e}")
 
     def get_session_status(self, session_id: str) -> Dict[str, Any]:
         """Get current session status"""
+        
+        if session_id not in self.sessions:
+            self._load_session(session_id)
         
         if session_id not in self.sessions:
             return {"status": "not_found"}
