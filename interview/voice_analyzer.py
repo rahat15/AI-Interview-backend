@@ -84,7 +84,10 @@ class VoiceAnalyzer:
                     return self._fail("audio_decode_failed")
 
             if y is None or len(y) == 0:
+                logger.warning("[VoiceAnalyzer] sf.read returned empty array")
                 return self._fail("empty_audio_after_decode")
+            
+            # logger.info(f"[VoiceAnalyzer] Decoded: {len(y)} samples at {sr}Hz (Duration: {len(y)/sr:.2f}s)")
 
             logger.info(f"Audio decoded successfully: {len(y)} samples at {sr}Hz")
 
@@ -94,6 +97,7 @@ class VoiceAnalyzer:
 
             # Resample if needed
             if sr != self.sample_rate:
+                # logger.info(f"[VoiceAnalyzer] Resampling from {sr} to {self.sample_rate}")
                 y = librosa.resample(y, orig_sr=sr, target_sr=self.sample_rate)
                 sr = self.sample_rate
 
@@ -115,6 +119,12 @@ class VoiceAnalyzer:
                     }
             
             analysis["analysis_ok"] = True
+            
+            # Check if metrics are all zero, which is suspicious
+            metrics = analysis.get("voice_metrics", {})
+            if metrics.get("duration", 0) == 0:
+                logger.warning(f"[VoiceAnalyzer] Processed audio but duration is 0. Metrics: {metrics}")
+
             return analysis
 
         except Exception as e:
@@ -374,3 +384,7 @@ class VoiceAnalyzer:
                 "wpm_source": "none",
             },
         }
+
+
+# Global instance
+voice_analyzer = VoiceAnalyzer()

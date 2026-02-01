@@ -35,7 +35,7 @@ langchain-openai==0.3.31
 langgraph==0.6.6
 
 # LLM provider for CV evaluation
-groq==0.4.2
+groq>=1.0.0
 
 # Vector embeddings and search
 sentence-transformers==3.0.1
