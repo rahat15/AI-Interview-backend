@@ -341,6 +341,20 @@ async def submit_answer(
             evaluated_item = last_item
         else:
             evaluated_item = history[-2] if len(history) >= 2 else {}
+        
+        # Enhance combined evaluation with video analysis
+        if evaluated_item.get("evaluation") and video_analysis:
+            try:
+                # Re-combine scores with video analysis for cheating detection
+                tech_eval = evaluated_item.get("technical_evaluation", {})
+                voice_eval = evaluated_item.get("communication_evaluation", {})
+                
+                enhanced_combined = interview_manager._combine_text_voice_scores(
+                    tech_eval, voice_eval, video_analysis
+                )
+                evaluated_item["evaluation"] = enhanced_combined
+            except Exception as e:
+                print(f"Failed to enhance evaluation with video analysis: {e}")
 
         response_data = {
             "evaluation": evaluated_item.get("evaluation"),
