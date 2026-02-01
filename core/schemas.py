@@ -324,6 +324,113 @@ class InterviewV2CompleteResponse(BaseSchema):
     metrics: Dict[str, float]
 
 
+# Resume optimization schemas
+class CVQualitySubscore(BaseSchema):
+    dimension: str
+    score: int
+    max_score: int
+    evidence: List[str]
+
+
+class CVQuality(BaseSchema):
+    overall_score: int
+    subscores: List[CVQualitySubscore]
+
+
+class JDMatchSubscore(BaseSchema):
+    dimension: str
+    score: int
+    max_score: int
+    evidence: List[str]
+
+
+class JDMatch(BaseSchema):
+    overall_score: int
+    subscores: List[JDMatchSubscore]
+
+
+class KeyTakeaways(BaseSchema):
+    red_flags: List[str]
+    green_flags: List[str]
+
+
+class Analytics(BaseSchema):
+    cv_quality: CVQuality
+    jd_match: JDMatch
+    key_takeaways: KeyTakeaways
+    overall_score: int
+
+
+class TailoredResume(BaseSchema):
+    summary: str
+    experience: List[str]
+    skills: List[str]
+    projects: List[str]
+
+
+class Top1PercentGap(BaseSchema):
+    strengths: List[str]
+    gaps: List[str]
+    actionable_next_steps: List[str]
+
+
+class Enhancement(BaseSchema):
+    tailored_resume: TailoredResume
+    top_1_percent_gap: Top1PercentGap
+    cover_letter: str
+
+
+class ResumeData(BaseSchema):
+    id: str
+    filename: str
+    url: str
+    analytics: Analytics
+    enhancement: Enhancement
+
+
+class ResumeAnalysisRequest(BaseSchema):
+    message: str
+    resume: ResumeData
+
+
+class OptimizedCVContent(BaseSchema):
+    professional_summary: str
+    key_skills: List[str]
+    experience_highlights: List[str]
+    project_descriptions: List[str]
+    achievements: List[str]
+    recommendations: List[str]
+    cover_letter_template: str
+    ats_keywords: List[str]
+    improvement_priority: List[str]
+
+
+class CVOptimizationResponse(BaseSchema):
+    status: str
+    optimized_content: OptimizedCVContent
+    confidence_score: float
+    message: str
+
+
+class ResumeBuilderContent(BaseSchema):
+    personal_info: Dict[str, str]
+    professional_summary: str
+    skills: Dict[str, List[str]]
+    experience: List[Dict[str, Any]]
+    projects: List[Dict[str, Any]]
+    education: List[Dict[str, Any]]
+    achievements: List[str]
+    certifications: List[Dict[str, str]]
+    languages: List[Dict[str, str]]
+
+
+class ResumeBuilderResponse(BaseSchema):
+    status: str
+    resume_content: ResumeBuilderContent
+    formatting_tips: List[str]
+    message: str
+
+
 # Separate schema for JSON-based start (resume/jd as text)
 # Note: JSON/text-only start schema removed to avoid duplicate OpenAPI
 # exposure. The multipart `/v2/interview/start` endpoint should be used

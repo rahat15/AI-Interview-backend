@@ -20,6 +20,7 @@ from apps.api.routers.audio import router as audio_router
 from apps.api.routers.resume import router as resume_router
 from apps.api.routers.interview_v2 import router as interview_v2_router
 from apps.api.interview_routes import router as interview_router
+from apps.api.routers.optimized_interview_routes import router as optimized_interview_router
 
 # DB
 from core.db import connect_to_mongo, close_mongo_connection
@@ -99,6 +100,9 @@ def create_app() -> FastAPI:
     
     # V2 Interview - Gemini-powered
     app.include_router(interview_v2_router, tags=["Interview V2"])
+    
+    # V2 Optimized - LangGraph with caching & streaming
+    app.include_router(optimized_interview_router, prefix="/interview", tags=["Interview V2 Optimized"])
 
     # Legacy
     app.include_router(interview_router, prefix="/interview", tags=["Interview (Legacy)"])

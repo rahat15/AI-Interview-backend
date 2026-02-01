@@ -261,7 +261,12 @@ class SpeechToTextConverter:
                 logger.warning("Transcription returned empty text")
                 return "Could not understand audio"
             
-            logger.info(f"✅ Transcription successful: {text[:100]}...")
+            # Log full transcription
+            logger.info("=" * 80)
+            logger.info("🎤 AUDIO TRANSCRIPTION (Full):")
+            logger.info(text)
+            logger.info("=" * 80)
+            logger.info(f"✅ Transcription successful ({len(text)} characters)")
             return text
 
         except Exception as e:
