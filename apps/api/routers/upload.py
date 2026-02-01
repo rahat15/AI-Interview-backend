@@ -180,14 +180,15 @@ async def upload_and_improve_cv(
     try:
         cv_text = save_and_extract(file)
 
+        # Handle optional JD
         if jd_text and jd_text.strip():
-            return improvement_engine.evaluate(cv_text, jd_text)
+            jd_final = jd_text
+        elif jd_file is not None:
+            jd_final = save_and_extract(jd_file)
+        else:
+            jd_final = "" # Allow general improvement without JD
 
-        if jd_file is not None:
-            jd_extracted = save_and_extract(jd_file)
-            return improvement_engine.evaluate(cv_text, jd_extracted)
-
-        raise HTTPException(status_code=400, detail="JD is required for improvement")
+        return improvement_engine.evaluate(cv_text, jd_final)
 
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Improvement failed: {str(e)}")

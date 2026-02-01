@@ -283,7 +283,7 @@
 
 import json, time, logging, os
 from dotenv import load_dotenv
-from .prompts import UNIFIED_EVALUATION_PROMPT, CV_ONLY_EVALUATION_PROMPT, IMPROVEMENT_PROMPT
+from .prompts import UNIFIED_EVALUATION_PROMPT, CV_ONLY_EVALUATION_PROMPT, IMPROVEMENT_PROMPT, GENERAL_IMPROVEMENT_PROMPT, RESUME_REWRITE_PROMPT
 
 
 load_dotenv()
@@ -345,11 +345,25 @@ class LLMScorer:
                     raise
                 time.sleep(1.5 ** attempt)
     
-    def improvement(self, cv_text: str, jd_text: str) -> dict:
-        if not cv_text.strip() or not jd_text.strip():
-            raise ValueError("Both CV text and JD text are required for improvement")
+    def improvement(self, cv_text: str, jd_text: str = "") -> dict:
+        if not cv_text.strip():
+            raise ValueError("CV text is required for improvement")
 
-        prompt = IMPROVEMENT_PROMPT.format(cv_text=cv_text, jd_text=jd_text)
+        if jd_text and jd_text.strip():
+            prompt = IMPROVEMENT_PROMPT.format(cv_text=cv_text, jd_text=jd_text)
+        else:
+            prompt = GENERAL_IMPROVEMENT_PROMPT.format(cv_text=cv_text)
+            
+        return self._generate_and_parse_json(prompt)
+
+    def rewrite_resume(self, cv_text: str, improvement_context: str) -> dict:
+        if not cv_text.strip():
+            raise ValueError("CV text is required")
+        
+        prompt = RESUME_REWRITE_PROMPT.format(
+            cv_text=cv_text, 
+            improvement_context=improvement_context or "No specific improvements requested. Just structure the CV."
+        )
         return self._generate_and_parse_json(prompt)
 
 

@@ -143,7 +143,11 @@ class FitIndexRequest(BaseModel):
 
 class ImprovementRequest(BaseModel):
     cv_text: str = Field(..., description="Raw resume text")
-    jd_text: str = Field(..., description="Raw job description text")
+    jd_text: str = Field(None, description="Raw job description text")
+
+class RewriteRequest(BaseModel):
+    cv_text: str = Field(..., description="Original resume text")
+    improvement_context: str = Field(..., description="Improvement instructions or context")
 
 # ---------- Routes ----------
 @router.post("/score", summary="Score CV Quality (CV only)")
@@ -189,3 +193,19 @@ def improve_cv(payload: ImprovementRequest):
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Improvement generation failed: {str(e)}")
+
+
+@router.post("/rewrite", summary="Rewrite Resume with Improvements")
+def rewrite_resume(payload: RewriteRequest):
+    """
+    Rewrites the CV based on original text and improvement suggestions.
+    Returns structured JSON for resume rendering.
+    """
+    try:
+        result = improvement_engine.rewrite_resume(
+            cv_text=payload.cv_text,
+            improvement_context=payload.improvement_context
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Resume rewrite failed: {str(e)}")
