@@ -389,8 +389,14 @@ class ResumeData(BaseSchema):
 
 
 class ResumeAnalysisRequest(BaseSchema):
-    message: str
-    resume: ResumeData
+    message: Optional[str] = None
+    resume: Optional[ResumeData] = None
+    # Support direct fields as well (for backward compatibility)
+    id: Optional[str] = None
+    filename: Optional[str] = None
+    url: Optional[str] = None
+    analytics: Optional[Analytics] = None
+    enhancement: Optional[Enhancement] = None
 
 
 class OptimizedCVContent(BaseSchema):

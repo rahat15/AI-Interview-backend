@@ -471,7 +471,20 @@ async def generate_final_enhanced_resume(request: ResumeAnalysisRequest):
     Generates professional, ATS-optimized resume content with intelligent data extraction.
     """
     try:
-        resume_data = request.resume
+        # Support both nested (resume field) and direct field structure
+        if request.resume:
+            resume_data = request.resume
+        else:
+            # Create ResumeData from direct fields
+            from core.schemas import ResumeData
+            resume_data = ResumeData(
+                id=request.id,
+                filename=request.filename,
+                url=request.url,
+                analytics=request.analytics,
+                enhancement=request.enhancement
+            )
+        
         analytics = resume_data.analytics
         enhancement = resume_data.enhancement
         
